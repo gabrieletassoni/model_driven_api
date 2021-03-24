@@ -148,7 +148,11 @@ class Api::V2::ApplicationController < ActionController::API
     end
     
     def json_attrs
-        ((@model.json_attrs.presence || @json_attrs.presence || {}) rescue {})
+        # In order of importance: if you send the configuration via querystring you are ok 
+        # has precedence over if you have setup the json_attrs in the model concern
+        from_params = params[:a].deep_symbolize_keys unless params[:a].blank? 
+        from_params = params[:json_attrs].deep_symbolize_keys unless params[:json_attrs].blank?
+        from_params.presence || @model.json_attrs.presence || @json_attrs.presence || {} rescue {}
     end
     
     def extract_model
