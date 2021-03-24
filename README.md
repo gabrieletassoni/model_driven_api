@@ -1,8 +1,9 @@
 # Model Driven Api
 
-## Goal
+## Goals
 
-To have a comprehensive and meaningful Model driven API right out of the box by just creating migrations in your rails app or engine. With all the CRUD operations in place out of the box and easily expandable with custom actions if needed.
+* To have a comprehensive and meaningful Model driven API right out of the box by just creating migrations in your rails app or engine. With all the CRUD operations in place out of the box and easily expandable with custom actions if needed.
+* To have a plain REST implementation which adapts the returned JSON to the specific needs of the client, **without the need to change backend code**, this may overcome the biggest disadvantage of REST vs GraphQL = client driver presentation.
 
 ## TL;DR 5-10 minutes adoption
 
@@ -26,6 +27,55 @@ The default admin user created during the migration step has a randomly generate
 I've always been interested in effortless, no-fuss, conventions' based development, DRYness, and pragmatic programming, I've always thought that at this point of the technology evolution, we need not to configure too much to have our software run, having the software adapt to data layers and from there building up APIs, visualizations, etc. in an automatic way. This is a first step to have a schema driven API or better model drive, based on the underlining database, the data it has to serve and some sane dafults, or conventions. This effort also gives, thanks to meta programming, an insight on the actual schema, via the info API, the translations available and the DSL which can change the way the data is presented, leading to a strong base for automatica built of UIs consuming the API (react, vue, angular based PWAs, maybe! ;-) ).
 
 Doing this means also narrowing a bit the scope of the tools, taking decisions, at least for the first implementations and versions of this engine, so, this works well if the data is relational, this is a prerequisite (postgres, mysql, mssql, etc.).
+
+## REST Enhanced
+
+Thanks to the inclusion of [Ransack](https://github.com/activerecord-hackery/ransack/wiki) and [ActiveModel::Serializer](https://api.rubyonrails.org/classes/ActiveModel/Serializers/JSON.html), by just adding the querystring keys **q** and **a**, you can create complex queries (q) to obtain just the records you need, which present in the returnd JSON just the attributes (a) needed.
+By combining the two keys, you can obtain just the data you want.
+
+The *json_attrs* or *a* query string passed accepts these keys (Please see [ActiveModel::Serializer](https://api.rubyonrails.org/classes/ActiveModel/Serializers/JSON.html) for reference):
+- only: list [] of model fields to be shown in JSON serialization
+- except: exclude these fields from the JSON serialization, this is a list []
+- methods: include the result of some methods defined in the model, this is a list []
+- include: include associated models, it's an object {} which also accepts the keys described in this document (only, except, methods, include)
+
+### Example
+
+```
+{{ base_url  }}/{{ controller  }}?a[only][]=locked&a[only][]=username&a[methods][]=jwe_data
+```
+
+Is translated to:
+
+```
+{a: {only: ["locked", "username"], methods: ["jwe_data"]}}
+```
+
+Which tells the API controller just to return this optimized serialization:
+
+```
+[
+  {
+    "username": "Administrator",
+    "locked": false,
+    "jwe_data": "eyJhbGciOiJkaXIiLCJlbmMiOiJSMTI4R0NNIn0..yz0tnC6y3BzgoOsO.BjHb9CRIb0vrv7nnEx54Ac8-cATPJ9sTlQSSxRbTmtcPHc5KhvtyE_hyBRnIcK92bzUBRwdy6ASB2XJVy1VfWxAmO8E.4tOzJlfuXi-shaRhDSkOyg"
+  }
+]
+```
+
+By combinig with Ransack's **q** query string key (please read [Ransack](https://github.com/activerecord-hackery/ransack/wiki) documentation to discover all the possible and complex searches you can make), you can obtain right what you want:
+
+```
+{{ base_url  }}/{{ controller  }}?a[only][]=locked&a[only][]=username&a[methods][]=jwe_data&q[email_cont][]=adm
+```
+
+Which translates to:
+
+```
+{a: {only: ["locked", "username"], methods: ["jwe_data"]}, q: { email_cont: ["adm"]}}
+```
+
+For bigger searches, which may over crowd the querystring length, you can always use the default [Search](#Search) POST endpoint.
 
 ## v2?
 
