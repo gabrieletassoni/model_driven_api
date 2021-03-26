@@ -10,6 +10,7 @@ module ApiExceptionManagement
             rescue_from ActiveModel::ForbiddenAttributesError, with: :fivehundred!
             rescue_from ActiveRecord::RecordInvalid, with: :invalid!
             rescue_from ActiveRecord::RecordNotFound, with: :not_found!
+            rescue_from ActiveRecord::RecordNotUnique, with: :invalid!
         end
         
         def unauthenticated! exception = AuthenticateUser::AccessDenied.new

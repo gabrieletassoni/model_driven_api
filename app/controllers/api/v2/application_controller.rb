@@ -20,7 +20,10 @@ class Api::V2::ApplicationController < ActionController::API
         return render json: result, status: 200 if status == true
 
         # Normal Index Action with Ransack querying
-        @q = (@model.column_names.include?("user_id") ? @model.where(user_id: current_user.id) : @model).ransack(@query.presence|| params[:q])
+        # Keeping this automation can be too dangerous and lead to unpredicted results
+        # TODO: Remove it
+        # @q = (@model.column_names.include?("user_id") ? @model.where(user_id: current_user.id) : @model).ransack(@query.presence|| params[:q])
+        @q = @model.ransack(@query.presence|| params[:q])
         @records_all = @q.result # (distinct: true) Removing, but I'm not sure, with it I cannot sort in postgres for associated records (throws an exception on misuse of sort with distinct)
         page = (@page.presence || params[:page])
         per = (@per.presence || params[:per])
@@ -66,7 +69,9 @@ class Api::V2::ApplicationController < ActionController::API
         return render json: result, status: 200 if status == true
 
         # Normal Create Action
-        @record.user_id = current_user.id if @model.column_names.include? "user_id"
+        # Keeping this automation can be too dangerous and lead to unpredicted results
+        # TODO: Remove it
+        # @record.user_id = current_user.id if @model.column_names.include? "user_id"
         @record.save!
         render json: @record.to_json(json_attrs), status: 201
     end
@@ -143,7 +148,10 @@ class Api::V2::ApplicationController < ActionController::API
     
     def find_record
         record_id ||= (params[:path].split("/").second.to_i rescue nil)
-        @record = @model.column_names.include?("user_id") ? @model.where(id: (record_id.presence || @record_id.presence || params[:id]), user_id: current_user.id).first : @model.find((@record_id.presence || params[:id]))
+        # Keeping this automation can be too dangerous and lead to unpredicted results
+        # TODO: Remove it
+        # @record = @model.column_names.include?("user_id") ? @model.where(id: (record_id.presence || @record_id.presence || params[:id]), user_id: current_user.id).first : @model.find((@record_id.presence || params[:id]))
+        @record = @model.find((@record_id.presence || params[:id]))
         return not_found! if @record.blank?
     end
     
