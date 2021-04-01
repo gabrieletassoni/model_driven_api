@@ -113,7 +113,8 @@ class Api::V2::ApplicationController < ActionController::API
             resource = "custom_action_#{params[:do]}"
             raise NoMethodError unless @model.respond_to?(resource)
             # return true, MultiJson.dump(params[:id].blank? ? @model.send(resource, params) : @model.send(resource, params[:id].to_i, params))
-            return true, MultiJson.dump(@model.send(resource, params))
+            puts json_attrs
+            return true, @model.send(resource, params).to_json(json_attrs)
         end
         # if it's here there is no custom action in the request querystring
         return false
@@ -160,7 +161,7 @@ class Api::V2::ApplicationController < ActionController::API
         # has precedence over if you have setup the json_attrs in the model concern
         from_params = params[:a].deep_symbolize_keys unless params[:a].blank? 
         from_params = params[:json_attrs].deep_symbolize_keys unless params[:json_attrs].blank?
-        from_params.presence || @model.json_attrs.presence || @json_attrs.presence || {} rescue {}
+        from_params.presence || @json_attrs.presence || @model.json_attrs.presence || {} rescue {}
     end
     
     def extract_model
