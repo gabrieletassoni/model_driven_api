@@ -128,18 +128,20 @@ class Api::V2::ApplicationController < ActionController::API
     end
     
     def authenticate_request
-        # puts request.headers.inspect
+        puts request.headers.inspect
         @current_user = nil
-        # puts "Are there wbehooks headers to check for? #{Settings.ns(:security).allowed_authorization_headers}"
+        puts "Are there webhooks headers to check for? #{Settings.ns(:security).allowed_authorization_headers}"
         Settings.ns(:security).allowed_authorization_headers.split(",").each do |header|
             # puts "Found header #{header}: #{request.headers[header.underscore.dasherize]}" 
             check_authorization("Authorize#{header}".constantize.call(request.headers, request.raw_post)) if request.headers[header.underscore.dasherize]
         end
         
-        # This is the default one, if the header doesn't have a valid form for one of the other Auth methods, then use this Auth Class
+        puts "This is the default one, if the header doesn't have a valid form for one of the other Auth methods, then use this Auth Class"
         check_authorization AuthorizeApiRequest.call(request.headers) unless @current_user
+        puts "Inspect @current_user: #{@current_user} if nil, then returns unauthenticated"
         return unauthenticated!(OpenStruct.new({message: @auth_errors})) unless @current_user
         
+        puts "We are here, so the user authenticated"
         current_user = @current_user
         params[:current_user_id] = @current_user.id
         # Now every time the user fires off a successful GET request, 
