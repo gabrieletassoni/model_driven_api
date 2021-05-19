@@ -2,7 +2,7 @@ module ModelDrivenApiUser
     extend ActiveSupport::Concern
     
     included do
-
+        has_many :used_tokens, inverse_of: :user, dependent: :destroy
         ## DSL (AKA what to show in the returned JSON)
         # Use @@json_attrs to drive json rendering for 
         # API model responses (index, show and update ones).
