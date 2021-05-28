@@ -17,7 +17,7 @@ class Api::V2::InfoController < Api::V2::ApplicationController
 
 
   # api :GET, '/api/v2/info/heartbeat'
-  # Just keeps the session alive
+  # Just keeps the session alive by returning a new token
   def heartbeat
     head :ok
   end
