@@ -15,6 +15,13 @@ class Api::V2::InfoController < Api::V2::ApplicationController
     render json: ::Role.all.to_json, status: 200
   end
 
+
+  # api :GET, '/api/v2/info/heartbeat'
+  # Just keeps the session alive
+  def heartbeat
+    head :ok
+  end
+
   # GET '/api/v2/info/translations'
   def translations
     render json: I18n.t(".", locale: (params[:locale].presence || :it)).to_json, status: 200
