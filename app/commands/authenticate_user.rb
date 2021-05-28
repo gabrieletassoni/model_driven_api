@@ -23,7 +23,7 @@ class AuthenticateUser
             # Since this is a new login and I don't care from where it comes, new logins always
             # Invalidate older tokens
             UsedToken.where(user_id: api_user.id).update(is_valid: false) if ENV["ALLOW_MULTISESSIONS"] == "false"
-            return result
+            return {jwt: result, user: current_u}
         end
         nil
     end
