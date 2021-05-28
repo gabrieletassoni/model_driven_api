@@ -12,6 +12,7 @@ Rails.application.routes.draw do
                 get :translations
                 get :schema
                 get :dsl
+                get :heartbeat
             end
 
             post "authenticate" => "authentication#authenticate"

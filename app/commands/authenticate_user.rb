@@ -7,20 +7,22 @@ class AuthenticateUser
     prepend SimpleCommand
     
     def initialize(*args)
-        if !args.email.blank? && !args.password.blank?
-            @email = args.email
-            @password = args.password
-        elsif !args.access_token.blank?
-            @access_token = args.access_token
+        first_arg = args.first
+        if !first_arg[:email].blank? && !first_arg[:password].blank?
+            @email = first_arg[:email]
+            @password = first_arg[:password]
+        elsif !first_arg[:access_token].blank?
+            @access_token = first_arg[:access_token]
         end
     end
     
     def call
-        if !api_user.blank? && result = JsonWebToken.encode(user_id: api_user.id)
+        current_u = api_user
+        if !current_u.blank? && result = JsonWebToken.encode(user_id: current_u.id)
             # The token is created and the api_user exists => Invalidating all the previous tokens
             # Since this is a new login and I don't care from where it comes, new logins always
             # Invalidate older tokens
-            UsedToken.where(user_id: api_user.id).update(valid: false)
+            UsedToken.where(user_id: api_user.id).update(is_valid: false) if ENV["ALLOW_MULTISESSIONS"] == "false"
             return result
         end
         nil
@@ -33,8 +35,7 @@ class AuthenticateUser
     def api_user
         if !email.blank? && !password.blank?
             user = User.find_by(email: email)
-            
-            # Verify the password. You can create a blank method for now.
+            # Verify the password.
             raise AccessDenied if user.blank? && user.authenticate(password).blank?
         elsif !access_token.blank?
             user = User.find_by(access_token: access_token)
