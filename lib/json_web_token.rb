@@ -3,7 +3,8 @@ class JsonWebToken
     def encode(payload, expiry = 15.minutes.from_now.to_i)
       result = ::JWT.encode(payload.merge(exp: expiry), ::Rails.application.credentials.dig(:secret_key_base).presence||ENV["SECRET_KEY_BASE"])
       # Store the created token into the DB for later checks if is invalid
-      UsedToken.create(token: result, user_id: payload[:user_id])
+      # In a public environment management, without login, it has no interest, so I don't pollute the DB
+      UsedToken.find_or_create_by(token: result, user_id: payload[:user_id]) if ENV["ALLOW_MULTISESSIONS"] == "false"
       result
     end
     
