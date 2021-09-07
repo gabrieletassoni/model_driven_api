@@ -11,7 +11,7 @@ Gem::Specification.new do |spec|
   spec.email       = ["gabriele.tassoni@gmail.com"]
   spec.homepage    = "https://github.com/gabrieletassoni/model_driven_api"
   spec.summary     = "Convention based RoR engine which uses DB schema introspection to create REST APIs."
-  spec.description = "Ruby on Rails REST APIs built by convention using the DB schema as the foundation."
+  spec.description = "Ruby on Rails REST APIs built by convention using the DB schema as the foundation, please see README for mode of use."
   spec.license     = "MIT"
 
   # Prevent pushing this gem to RubyGems.org. To allow pushes either set the 'allowed_push_host'
