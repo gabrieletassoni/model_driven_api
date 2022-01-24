@@ -142,6 +142,14 @@ Once the JWT has been retrieved, the **Authenticated Request**s must use it in a
 Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE1OTA3NzQyMzR9.Z-1yECp55VD560UcB7gIhgVWJNjn8HUerG5s4TVSRko
 ```
 
+ #### Token Refresh
+ 
+If issued during the token validity period, this will just return a new JWT to be used during following API request.
+
+```bash
+:GET http://localhost:3000/api/v2/info/heartbeat
+```
+
 ### CRUD Actions
 
 All the interactions with the **Models** are **Authenticated Request** (see below for reference on **Getting the Token**), all the models have the following six **CRUD** actions and the **custom** actions defined for them in addition (see below for reference to custom actions in the **Schema** section of the **Info** controller):
