@@ -299,7 +299,7 @@ Something like this can be retrieved:
 By issuing this GET request:
 
 ```bash
-GET http://localhost:3000/api/v2/info/roles
+GET http://localhost:3000/api/v2/info/schema
 ```
 
 You will get something like:
