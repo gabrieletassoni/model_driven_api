@@ -73,4 +73,9 @@ class Api::V2::InfoController < Api::V2::ApplicationController
     end
     render json: pivot.to_json, status: 200
   end
+
+  def settings
+    render json: ThecoreSettings::Setting.pluck(:ns, :key, :raw).inject({}){|result, array| (result[array.first] ||= {})[array.second] = array.third; result }.to_json, status: 200
+  end
+
 end
