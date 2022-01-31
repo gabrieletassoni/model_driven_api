@@ -22,7 +22,7 @@ class AuthenticateUser
             # The token is created and the api_user exists => Invalidating all the previous tokens
             # Since this is a new login and I don't care from where it comes, new logins always
             # Invalidate older tokens
-            UsedToken.where(user_id: api_user.id).update(is_valid: false) if ENV["ALLOW_MULTISESSIONS"] == "false"
+            UsedToken.where(user_id: current_u.id).update(is_valid: false) if ENV["ALLOW_MULTISESSIONS"] == "false"
             return {jwt: result, user: current_u}
         end
         nil
@@ -36,7 +36,7 @@ class AuthenticateUser
         if !email.blank? && !password.blank?
             user = User.find_by(email: email)
             # Verify the password.
-            raise AccessDenied if user.blank? && user.authenticate(password).blank?
+            user = nil if user.blank? || user.authenticate(password).blank?
         elsif !access_token.blank?
             user = User.find_by(access_token: access_token)
         end

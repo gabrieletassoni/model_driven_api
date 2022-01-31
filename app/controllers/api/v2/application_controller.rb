@@ -131,8 +131,8 @@ class Api::V2::ApplicationController < ActionController::API
     def authenticate_request
         @current_user = nil
         Settings.ns(:security).allowed_authorization_headers.split(",").each do |header|
-            # puts "Found header #{header}: #{request.headers[header.underscore.dasherize]}" 
-            check_authorization("Authorize#{header}".constantize.call(request.headers, request.raw_post)) if request.headers[header.underscore.dasherize]
+            # puts "Found header #{header}: #{request.headers[header]}" 
+            check_authorization("Authorize#{header}".constantize.call(request.headers)) if request.headers[header]
         end
         
         check_authorization AuthorizeApiRequest.call(request.headers) unless @current_user
