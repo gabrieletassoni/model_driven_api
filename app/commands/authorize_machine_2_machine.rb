@@ -21,8 +21,8 @@ class AuthorizeMachine2Machine
     end
     
     def http_auth_header
-        if headers['Machine2Machine'].present?
-            return headers['Machine2Machine'].split(' ').last
+        if headers['Authorization'].present?
+            return headers['Authorization'].split(' ').last
         else
             errors.add(:token, "Missing token")
         end
