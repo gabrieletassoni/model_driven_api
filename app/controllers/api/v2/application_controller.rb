@@ -16,8 +16,8 @@ class Api::V2::ApplicationController < ActionController::API
         authorize! :index, @model
 
         # Custom Action
-        status, result = check_for_custom_action
-        return render json: result, status: 200 if status == true
+        status, result, status_number = check_for_custom_action
+        return render json: result, status: (status_number.presence || 200) if status == true
 
         # Normal Index Action with Ransack querying
         # Keeping this automation can be too dangerous and lead to unpredicted results
@@ -52,8 +52,8 @@ class Api::V2::ApplicationController < ActionController::API
         authorize! :show, @record_id
 
         # Custom Show Action
-        status, result = check_for_custom_action
-        return render json: result, status: 200 if status == true
+        status, result, status_number = check_for_custom_action
+        return render json: result, status: (status_number.presence || 200) if status == true
 
         # Normal Show
         result = @record.to_json(json_attrs)
@@ -65,8 +65,8 @@ class Api::V2::ApplicationController < ActionController::API
         authorize! :create, @record
 
         # Custom Action
-        status, result = check_for_custom_action
-        return render json: result, status: 200 if status == true
+        status, result, status_number = check_for_custom_action
+        return render json: result, status: (status_number.presence || 200) if status == true
 
         # Normal Create Action
         # Keeping this automation can be too dangerous and lead to unpredicted results
@@ -80,8 +80,8 @@ class Api::V2::ApplicationController < ActionController::API
         authorize! :update, @record
 
         # Custom Action
-        status, result = check_for_custom_action
-        return render json: result, status: 200 if status == true
+        status, result, status_number = check_for_custom_action
+        return render json: result, status: (status_number.presence || 200) if status == true
 
         # Normal Update Action
         # Raisl 6 vs Rails 6.1
@@ -93,8 +93,8 @@ class Api::V2::ApplicationController < ActionController::API
         authorize! :destroy, @record
 
         # Custom Action
-        status, result = check_for_custom_action
-        return render json: result, status: 200 if status == true
+        status, result, status_number = check_for_custom_action
+        return render json: result, status: (status_number.presence || 200) if status == true
 
         # Normal Destroy Action
         return api_error(status: 500) unless @record.destroy
@@ -114,8 +114,9 @@ class Api::V2::ApplicationController < ActionController::API
             resource = "custom_action_#{params[:do]}"
             raise NoMethodError unless @model.respond_to?(resource)
             # return true, MultiJson.dump(params[:id].blank? ? @model.send(resource, params) : @model.send(resource, params[:id].to_i, params))
-            puts json_attrs
-            return true, @model.send(resource, params).to_json(json_attrs)
+            # puts json_attrs
+            body, status = @model.send(resource, params)
+            return true, body.to_json(json_attrs), status
         end
         # if it's here there is no custom action in the request querystring
         return false
