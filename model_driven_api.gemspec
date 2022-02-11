@@ -25,7 +25,7 @@ Gem::Specification.new do |spec|
 
   spec.files = Dir["{app,config,db,lib}/**/*", "MIT-LICENSE", "Rakefile", "README.md"]
 
-  spec.add_dependency "thecore_backend_commons", "~> 2.1"
+  spec.add_dependency "thecore_backend_commons", "~> 2.4"
   spec.add_dependency "jwt", "~> 2.2"
 
   spec.add_dependency "simple_command", "~> 0.1"
