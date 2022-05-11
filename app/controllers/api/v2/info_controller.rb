@@ -1,4 +1,4 @@
-require 'model_driven_api/version'
+# require 'model_driven_api/version'
 class Api::V2::InfoController < Api::V2::ApplicationController
   # Info uses a different auth method: username and password
   skip_before_action :authenticate_request, only: [:version], raise: false
