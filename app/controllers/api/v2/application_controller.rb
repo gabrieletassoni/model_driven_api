@@ -61,14 +61,13 @@ class Api::V2::ApplicationController < ActionController::API
     end
     
     def create
-        @record = @model.new(@body)
-        authorize! :create, @record
-
         # Custom Action
         status, result, status_number = check_for_custom_action
         return render json: result, status: (status_number.presence || 200) if status == true
 
         # Normal Create Action
+        @record = @model.new(@body)
+        authorize! :create, @record
         # Keeping this automation can be too dangerous and lead to unpredicted results
         # TODO: Remove it
         # @record.user_id = current_user.id if @model.column_names.include? "user_id"
