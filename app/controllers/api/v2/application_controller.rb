@@ -33,16 +33,16 @@ class Api::V2::ApplicationController < ActionController::API
         @records = @records_all.page(page).per(per)
         
         # If there's the keyword pagination_info, then return a pagination info object
-        return render json: MultiJson.dump({count: @records_all.count,current_page_count: @records.count,next_page: @records.next_page,prev_page: @records.prev_page,is_first_page: @records.first_page?,is_last_page: @records.last_page?,is_out_of_range: @records.out_of_range?,pages_count: @records.total_pages,current_page_number: @records.current_page }) if !pages_info.blank?
+        return render json: {count: @records_all.count,current_page_count: @records.count,next_page: @records.next_page,prev_page: @records.prev_page,is_first_page: @records.first_page?,is_last_page: @records.last_page?,is_out_of_range: @records.out_of_range?,pages_count: @records.total_pages,current_page_number: @records.current_page } if !pages_info.blank?
         
         # puts "ALL RECORDS FOUND: #{@records_all.inspect}"
         status = @records_all.blank? ? 404 : 200
         # puts "If it's asked for page number, then paginate"
-        return render json: MultiJson.dump(@records, json_attrs), status: status if !page.blank? # (@json_attrs || {})
+        return render json: @records.as_json(json_attrs), status: status if !page.blank? # (@json_attrs || {})
         #puts "if you ask for count, then return a json object with just the number of objects"
-        return render json: MultiJson.dump({count: @records_all.count}) if !count.blank?
+        return render json: {count: @records_all.count}if !count.blank?
         #puts "Default"
-        json_out = MultiJson.dump(@records_all, json_attrs)
+        json_out = @records_all.as_json(json_attrs)
         #puts "JSON ATTRS: #{json_attrs}"
         #puts "JSON OUT: #{json_out}"
         render json: json_out, status: status #(@json_attrs || {})
@@ -111,7 +111,6 @@ class Api::V2::ApplicationController < ActionController::API
             # call an unwanted method in the AR Model.
             resource = "custom_action_#{params[:do]}"
             raise NoMethodError unless @model.respond_to?(resource)
-            # return true, MultiJson.dump(params[:id].blank? ? @model.send(resource, params) : @model.send(resource, params[:id].to_i, params))
             # puts json_attrs
             body, status = @model.send(resource, params)
             return true, body.to_json(json_attrs), status
