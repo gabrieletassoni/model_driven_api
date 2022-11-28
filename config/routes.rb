@@ -27,8 +27,10 @@ Rails.application.routes.draw do
             # # CRUD Create
             post '*path', to: 'application#create'
             # # CRUD Update
+            put '*path/:id/multi', to: 'application#update_multi'
             put '*path/:id', to: 'application#update'
-            # # CRUD DElete
+            # # CRUD Delete
+            delete '*path/:id/multi', to: 'application#destroy_multi'
             delete '*path/:id', to: 'application#destroy'
         end
     end

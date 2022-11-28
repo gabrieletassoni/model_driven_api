@@ -27,13 +27,17 @@ class Api::V2::ApplicationController < ActionController::API
         @records_all = @q.result # (distinct: true) Removing, but I'm not sure, with it I cannot sort in postgres for associated records (throws an exception on misuse of sort with distinct)
         page = (@page.presence || params[:page])
         per = (@per.presence || params[:per])
-        pages_info = (@pages_info.presence || params[:pages_info])
+        # pages_info = (@pages_info.presence || params[:pages_info])
         count = (@count.presence || params[:count])
-        # Paging
+        # Pagination
         @records = @records_all.page(page).per(per)
+        # Content-Range: posts 0-4/27
+        range_start = [(page.to_i - 1) * per.to_i, 0].max;
+        range_end = [0, page.to_i * per.to_i - 1].max;
+        response.set_header('Content-Range', "#{@model.table_name} #{range_start}-#{range_end}/#{@records.total_count}")
         
         # If there's the keyword pagination_info, then return a pagination info object
-        return render json: {count: @records_all.count,current_page_count: @records.count,next_page: @records.next_page,prev_page: @records.prev_page,is_first_page: @records.first_page?,is_last_page: @records.last_page?,is_out_of_range: @records.out_of_range?,pages_count: @records.total_pages,current_page_number: @records.current_page } if !pages_info.blank?
+        # return render json: {count: @records_all.count,current_page_count: @records.count,next_page: @records.next_page,prev_page: @records.prev_page,is_first_page: @records.first_page?,is_last_page: @records.last_page?,is_out_of_range: @records.out_of_range?,pages_count: @records.total_pages,current_page_number: @records.current_page } if !pages_info.blank?
         
         # puts "ALL RECORDS FOUND: #{@records_all.inspect}"
         status = @records_all.blank? ? 404 : 200
@@ -82,9 +86,16 @@ class Api::V2::ApplicationController < ActionController::API
         return render json: result, status: (status_number.presence || 200) if status == true
 
         # Normal Update Action
-        # Raisl 6 vs Rails 6.1
+        # Rails 6 vs Rails 6.1
         @record.respond_to?('update_attributes!') ? @record.update_attributes!(@body) : @record.update!(@body)
         render json: @record.to_json(json_attrs), status: 200
+    end
+
+    def update_multi
+        authorize! :update, @model
+        ids = params[:ids].split(",")
+        @model.where(id: ids).update!(@body)
+        render json: ids.to_json, status: 200
     end
     
     def destroy
@@ -97,6 +108,15 @@ class Api::V2::ApplicationController < ActionController::API
         # Normal Destroy Action
         return api_error(status: 500) unless @record.destroy
         head :ok
+    end
+
+    def destroy_multi
+        authorize! :destroy, @model
+
+        # Normal Destroy Action
+        ids = params[:ids].split(",")
+        @model.where(id: ids).destroy!(@body)
+        render json: ids.to_json, status: 200
     end
     
     private
@@ -140,7 +160,7 @@ class Api::V2::ApplicationController < ActionController::API
         params[:current_user_id] = @current_user.id
         # Now every time the user fires off a successful GET request, 
         # a new token is generated and passed to them, and the clock resets.
-        response.headers['Token'] = JsonWebToken.encode(user_id: current_user.id)
+        response.set_header('Token', JsonWebToken.encode(user_id: current_user.id))
     end
     
     def find_record
