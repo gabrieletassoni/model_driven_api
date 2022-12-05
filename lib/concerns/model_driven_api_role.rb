@@ -3,7 +3,7 @@ module ModelDrivenApiRole
     
     included do
         ## DSL (AKA what to show in the returned JSON)
-        # Use @@json_attrs to drive json rendering for 
+        # Use self.json_attrs to drive json rendering for 
         # API model responses (index, show and update ones).
         # For reference:
         # https://api.rubyonrails.org/classes/ActiveModel/Serializers/JSON.html
