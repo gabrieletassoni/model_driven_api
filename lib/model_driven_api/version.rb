@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module ModelDrivenApi
-  VERSION = "#{`git describe --tags $(git rev-list --tags --max-count=1)`.chomp}"
+  VERSION = '2.5.4'
 end

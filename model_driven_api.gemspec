@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 $:.push File.expand_path("lib", __dir__)
 
 # Maintain your gem's version:
@@ -25,14 +27,19 @@ Gem::Specification.new do |spec|
 
   spec.files = Dir["{app,config,db,lib}/**/*", "MIT-LICENSE", "Rakefile", "README.md"]
 
+  spec.required_ruby_version = '>= 2.7.7'
+
+  # TheCore
   spec.add_dependency "thecore_backend_commons", "~> 2.4"
+
+  # Other gems
   spec.add_dependency "jwt", "~> 2.2"
 
   spec.add_dependency "simple_command", "~> 0.1"
   spec.add_dependency "kaminari", "~> 1.2"
 
   spec.add_dependency 'ransack', "~> 2.3"
-  
+
   spec.add_dependency 'rack-cors', "~> 1.1"
 
   spec.add_dependency 'multi_json', '~> 1.14'
