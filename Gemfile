@@ -14,13 +14,22 @@ gemspec
 # To use a debugger
 # gem 'byebug', group: [:development, :test]
 
-gem 'thecore_auth_commons', require: 'thecore_auth_commons', path: '../thecore_auth_commons'
-gem 'thecore_backend_commons', require: 'thecore_backend_commons', path: '../thecore_backend_commons'
-gem 'ransack'
-gem 'jwt'
-gem 'simple_command'
-gem 'rack-cors'
-gem 'kaminari'
-gem 'multi_json'
-gem 'deep_merge'
+gem "thecore_settings", "~> 3.0", path: "../thecore_settings"
+gem "thecore_auth_commons", "~> 3.0", path: "../thecore_auth_commons"
+gem "thecore_backend_commons", "~> 3.0", path: "../thecore_backend_commons"
+# https://github.com/jwt/ruby-jwt
+gem "jwt", "~> 2.4"
+
+# https://github.com/nebulab/simple_command
+gem "simple_command", "~> 1.0"
+
+# https://github.com/activerecord-hackery/ransack
+gem 'ransack', "~> 3.2"
+  
+# https://github.com/cyu/rack-cors
+gem 'rack-cors', "~> 1.1"
+
+# Intelligent Merging (recursive and recognizes types)
+# https://github.com/danielsdeleo/deep_merge
+gem "deep_merge", '~> 1.2'
 gem 'sqlite3'

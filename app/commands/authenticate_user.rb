@@ -11,8 +11,6 @@ class AuthenticateUser
         if !first_arg[:email].blank? && !first_arg[:password].blank?
             @email = first_arg[:email]
             @password = first_arg[:password]
-        elsif !first_arg[:access_token].blank?
-            @access_token = first_arg[:access_token]
         end
     end
     
@@ -30,15 +28,13 @@ class AuthenticateUser
     
     private
     
-    attr_accessor :email, :password, :access_token
+    attr_accessor :email, :password
     
     def api_user
         if !email.blank? && !password.blank?
             user = User.find_by(email: email)
             # Verify the password.
             user = nil if user.blank? || user.authenticate(password).blank?
-        elsif !access_token.blank?
-            user = User.find_by(access_token: access_token)
         end
 
         raise AccessDenied unless user.present?

@@ -3,7 +3,7 @@ module ModelDrivenApiRole
     
     included do
         ## DSL (AKA what to show in the returned JSON)
-        # Use @@json_attrs to drive json rendering for 
+        # Use self.json_attrs to drive json rendering for 
         # API model responses (index, show and update ones).
         # For reference:
         # https://api.rubyonrails.org/classes/ActiveModel/Serializers/JSON.html
@@ -17,7 +17,7 @@ module ModelDrivenApiRole
         # - include: include associated models, it's a list [] of hashes {} which also 
         #       accepts the [:only, :except, :methods, :include] keys.
         cattr_accessor :json_attrs
-        @@json_attrs = ModelDrivenApi.smart_merge((json_attrs || {}), {
+        self.json_attrs = ModelDrivenApi.smart_merge((json_attrs || {}), {
             except: [
                 :lock_version,
                 :created_at,

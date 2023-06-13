@@ -25,19 +25,22 @@ Gem::Specification.new do |spec|
 
   spec.files = Dir["{app,config,db,lib}/**/*", "MIT-LICENSE", "Rakefile", "README.md"]
 
-  spec.add_dependency "thecore_backend_commons", "~> 2.4"
-  spec.add_dependency "jwt", "~> 2.2"
+  spec.add_dependency "thecore_backend_commons", "~> 3.0"
+  # https://github.com/jwt/ruby-jwt
+  spec.add_dependency "jwt", "~> 2.4"
 
-  spec.add_dependency "simple_command", "~> 0.1"
-  spec.add_dependency "kaminari", "~> 1.2"
+  # https://github.com/nebulab/simple_command
+  spec.add_dependency "simple_command", "~> 1.0"
 
-  spec.add_dependency 'ransack', "~> 2.3"
+  # https://github.com/activerecord-hackery/ransack
+  spec.add_dependency 'ransack', "~> 3.2"
   
+  # https://github.com/cyu/rack-cors
   spec.add_dependency 'rack-cors', "~> 1.1"
-
-  spec.add_dependency 'multi_json', '~> 1.14'
 
   # Intelligent Merging (recursive and recognizes types)
   # https://github.com/danielsdeleo/deep_merge
   spec.add_dependency "deep_merge", '~> 1.2'
+
+  spec.add_development_dependency 'sqlite3'
 end
