@@ -1,3 +1,3 @@
 module ModelDrivenApi
-  VERSION = "#{`git describe --tags $(git rev-list --tags --max-count=1)`}"
+  VERSION = "3.0.9".freeze
 end
