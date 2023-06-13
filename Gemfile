@@ -14,9 +14,9 @@ gemspec
 # To use a debugger
 # gem 'byebug', group: [:development, :test]
 
-gem "thecore_settings", "~> 3.0", path: "../thecore_settings"
-gem "thecore_auth_commons", "~> 3.0", path: "../thecore_auth_commons"
-gem "thecore_backend_commons", "~> 3.0", path: "../thecore_backend_commons"
+gem "thecore_settings", "~> 3.0"
+gem "thecore_auth_commons", "~> 3.0"
+gem "thecore_backend_commons", "~> 3.0"
 # https://github.com/jwt/ruby-jwt
 gem "jwt", "~> 2.4"
 
