@@ -132,6 +132,7 @@ class Api::V2::ApplicationController < ActionController::API
             resource = "custom_action_#{params[:do]}"
             raise NoMethodError unless @model.respond_to?(resource)
             # puts json_attrs
+            params[:request_url] = request.url
             body, status = @model.send(resource, params)
             return true, body.to_json(json_attrs), status
         end
