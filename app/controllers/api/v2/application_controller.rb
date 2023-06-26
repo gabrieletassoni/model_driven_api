@@ -133,11 +133,18 @@ class Api::V2::ApplicationController < ActionController::API
             raise NoMethodError unless @model.respond_to?(resource)
             # puts json_attrs
             params[:request_url] = request.url
+            params[:token] = bearer_token
             body, status = @model.send(resource, params)
             return true, body.to_json(json_attrs), status
         end
         # if it's here there is no custom action in the request querystring
         return false
+    end
+
+    def bearer_token
+        pattern = /^Bearer /
+        header  = request.headers['Authorization']
+        header.gsub(pattern, '') if header && header.match(pattern)
     end
 
     def class_exists?(class_name)
