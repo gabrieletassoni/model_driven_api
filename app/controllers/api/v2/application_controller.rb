@@ -129,11 +129,12 @@ class Api::V2::ApplicationController < ActionController::API
         unless params[:do].blank?
             # Poor man's solution to avoid the possibility to 
             # call an unwanted method in the AR Model.
-            resource = "custom_action_#{params[:do]}"
+            custom_action, token = params[:do].split("-")
+            resource = "custom_action_#{custom_action}"
             raise NoMethodError unless @model.respond_to?(resource)
             # puts json_attrs
             params[:request_url] = request.url
-            params[:token] = bearer_token
+            params[:token] = token.presence || bearer_token
             body, status = @model.send(resource, params)
             return true, body.to_json(json_attrs), status
         end
@@ -158,10 +159,10 @@ class Api::V2::ApplicationController < ActionController::API
         @current_user = nil
         Settings.ns(:security).allowed_authorization_headers.split(",").each do |header|
             # puts "Found header #{header}: #{request.headers[header]}" 
-            check_authorization("Authorize#{header}".constantize.call(request.headers)) # if request.headers[header]
+            check_authorization("Authorize#{header}".constantize.call(request))
         end
         
-        check_authorization AuthorizeApiRequest.call(request.headers) unless @current_user
+        check_authorization AuthorizeApiRequest.call(request) unless @current_user
         return unauthenticated!(OpenStruct.new({message: @auth_errors})) unless @current_user
         
         current_user = @current_user
