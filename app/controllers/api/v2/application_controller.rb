@@ -137,9 +137,9 @@ class Api::V2::ApplicationController < ActionController::API
       # The endpoint can be expressed in two wayy:
       # 1. As a method in the model, with suffix custom_action_<custom_action>
       # 2. As a module instance method in the model, like Track::Endpoints.inventory
-      if @model.const_defined?(:Endpoints) && defined?("#{@model}::Endpoints.#{custom_action}")
+      if defined?("Endpoints::#{@model}.#{custom_action}")
         # Custom endpoint exists and can be called in the sub-modules form
-        body, status = @model::Endpoints.send(custom_action, params)
+        body, status = "Endpoints::#{@model}".constantize.send(custom_action, params)
       elsif @model.respond_to?("custom_action_#{custom_action}")
         body, status = @model.send("custom_action_#{custom_action}", params)
       else
