@@ -33,10 +33,10 @@ Gem::Specification.new do |spec|
   spec.add_dependency "simple_command", "~> 1.0"
 
   # https://github.com/activerecord-hackery/ransack
-  spec.add_dependency 'ransack', "~> 3.2"
+  spec.add_dependency 'ransack', "~> 4.1"
   
   # https://github.com/cyu/rack-cors
-  spec.add_dependency 'rack-cors', "~> 1.1"
+  spec.add_dependency 'rack-cors', "~> 2.0"
 
   # Intelligent Merging (recursive and recognizes types)
   # https://github.com/danielsdeleo/deep_merge
