@@ -24,10 +24,10 @@ gem "jwt", "~> 2.4"
 gem "simple_command", "~> 1.0"
 
 # https://github.com/activerecord-hackery/ransack
-gem 'ransack', "~> 3.2"
+gem 'ransack', "~> 4.1"
   
 # https://github.com/cyu/rack-cors
-gem 'rack-cors', "~> 1.1"
+gem 'rack-cors', "~> 2.0"
 
 # Intelligent Merging (recursive and recognizes types)
 # https://github.com/danielsdeleo/deep_merge
