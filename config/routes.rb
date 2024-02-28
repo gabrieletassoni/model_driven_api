@@ -14,6 +14,8 @@ Rails.application.routes.draw do
                 get :dsl
                 get :heartbeat
                 get :settings
+                get :swagger
+                get :openapi
             end
 
             post "authenticate" => "authentication#authenticate"
