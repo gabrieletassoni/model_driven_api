@@ -427,11 +427,12 @@ class Api::V2::InfoController < Api::V2::ApplicationController
       # Only if current user can read the model
       if can? :read, d
         model = d.to_s.underscore.tableize
+        # CRUD and Search endpoints
         pivot["/#{model}"] = {
           "get": {
             "summary": "Index",
             "description": "Returns the list of #{model}",
-            "tags": [model.classify],
+            "tags": [model.classify, "CRUD"],
             "security": [
               "bearerAuth": []
             ],
@@ -458,7 +459,7 @@ class Api::V2::InfoController < Api::V2::ApplicationController
           "post": {
             "summary": "Create",
             "description": "Creates a new #{model}",
-            "tags": [model.classify],
+            "tags": [model.classify, "CRUD"],
             "security": [
               "bearerAuth": []
             ],
@@ -492,12 +493,55 @@ class Api::V2::InfoController < Api::V2::ApplicationController
             }
           }
         }
+        # Non CRUD or Search, but custom, usually bulk operations endpoints
+        custom_actions = d.methods(false).select do |m| m.to_s.starts_with?("custom_action_") end
+        custom_actions.each do |action|
+          custom_action_name = action.to_s.gsub("custom_action_", "")
+          pivot["/#{model}/custom_action/#{custom_action_name}"] = {
+            "post": {
+              "summary": "Custom Action #{custom_action_name.titleize}",
+              "description": "This is just an example of a custom action, they can accept a wide range of payloads and response with a wide range of responses, also all verbs are valid. Please refer to the documentation for more information.",
+              "tags": [model.classify, "Custom Actions"],
+              "security": [
+                "bearerAuth": []
+              ],
+              "responses": {
+                "200": {
+                  "description": "Custom Action",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updated_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "404": {
+                  "description": "No #{model} found"
+                }
+              }
+            }
+          }
+        end
         pivot["/#{model}/search"] = {
           # Complex queries are made using ranskac search via a post endpoint
           "post": {
             "summary": "Search",
             "description": "Searches the #{model} using complex queries. Please refer to the [documentation](https://activerecord-hackery.github.io/ransack/) for the query syntax. In this swagger are presented only some examples, please refer to the complete documentation for more complex queries.\nThe primary method of searching in Ransack is by using what is known as predicates.\nPredicates are used within Ransack search queries to determine what information to match. For instance, the cont predicate will check to see if an attribute called 'name' or 'description' contains a value using a wildcard query.",
-            "tags": [model.classify],
+            "tags": [model.classify, "Search"],
             "security": [
               "bearerAuth": []
             ],
@@ -558,7 +602,7 @@ class Api::V2::InfoController < Api::V2::ApplicationController
                 }
               }
             ],
-            "tags": [model.classify],
+            "tags": [model.classify, "CRUD"],
             "security": [
               "bearerAuth": []
             ],
@@ -607,7 +651,7 @@ class Api::V2::InfoController < Api::V2::ApplicationController
                 }
               }
             ],
-            "tags": [model.classify],
+            "tags": [model.classify, "CRUD"],
             "security": [
               "bearerAuth": []
             ],
@@ -656,7 +700,7 @@ class Api::V2::InfoController < Api::V2::ApplicationController
                 }
               }
             ],
-            "tags": [model.classify],
+            "tags": [model.classify, "CRUD"],
             "security": [
               "bearerAuth": []
             ],
@@ -682,7 +726,7 @@ class Api::V2::InfoController < Api::V2::ApplicationController
                 }
               }
             ],
-            "tags": [model.classify],
+            "tags": [model.classify, "CRUD"],
             "security": [
               "bearerAuth": []
             ],
