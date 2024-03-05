@@ -84,14 +84,36 @@ class Api::V2::InfoController < Api::V2::ApplicationController
     method_key.type.to_s
   end
 
+  def integer?(str)
+    true if Integer(str) rescue false
+  end
+
+  def number?(str)
+    true if Float(str) rescue false
+  end
+
+  def datetime?(str)
+    true if DateTime.parse(str) rescue false
+  end
+
   def create_properties_from_model(model, dsl, remove_reserved = false)
-    JSON.parse(model.new.to_json(dsl)).keys.map do |k|
+    parsed_json = JSON.parse(model.new.to_json(dsl))
+    parsed_json.keys.map do |k|
       type = compute_type(model, k)
       
       # Remove fields that cannot be created or updated
       if remove_reserved && %w( id created_at updated_at lock_version).include?(k.to_s)
         nil
+      elsif type == "method" && (parsed_json[k].is_a?(FalseClass) || parsed_json[k].is_a?(TrueClass))
+        [k, { "type": "boolean" }]
+      elsif type == "method" && parsed_json[k].is_a?(String) && number?(parsed_json[k])
+        [k, { "type": "number" }]
+      elsif type == "method" && parsed_json[k].is_a?(String) && integer?(parsed_json[k])
+        [k, { "type": "integer" }]
+      elsif type == "method" && parsed_json[k].is_a?(String) && datetime?(parsed_json[k])
+        [k, { "type": "string", "format": "date-time" }]
       elsif type == "method"
+        # Unknown or complex format returned
         [k, { "type": "object", "additionalProperties": true }]
       elsif type == "date"
         [k, { "type": "string", "format": "date" }]
@@ -422,7 +444,7 @@ class Api::V2::InfoController < Api::V2::ApplicationController
         }
       }
     }
-    ApplicationRecord.subclasses.each do |d|
+    ApplicationRecord.subclasses.sort_by { |d| d.to_s }.each do |d|
       # Only if current user can read the model
       if true # can? :read, d
         model = d.to_s.underscore.tableize
