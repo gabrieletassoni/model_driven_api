@@ -84,12 +84,14 @@ class Api::V2::InfoController < Api::V2::ApplicationController
     method_key.type.to_s
   end
 
-  def create_properties_from_model(model, dsl)
+  def create_properties_from_model(model, dsl, remove_reserved = false)
     JSON.parse(model.new.to_json(dsl)).keys.map do |k|
-      # Rails.logger.debug "###################### Model #{model.model_name.human rescue ""} Key #{k}"
       type = compute_type(model, k)
-      # Rails.logger.debug "###################### Model #{model.model_name.human rescue ""} Type for #{k} is #{type}"
-      if type == "method"
+      
+      # Remove fields that cannot be created or updated
+      if remove_reserved && %w( id created_at updated_at lock_version).include?(k.to_s)
+        nil
+      elsif type == "method"
         [k, { "type": "object", "additionalProperties": true }]
       elsif type == "date"
         [k, { "type": "string", "format": "date" }]
@@ -468,7 +470,7 @@ class Api::V2::InfoController < Api::V2::ApplicationController
                     "properties": {
                       "#{model.singularize}": {
                         "type": "object",
-                        "properties": create_properties_from_model(d, {})
+                        "properties": create_properties_from_model(d, {}, true)
                       }
                     }
                   }
@@ -611,7 +613,7 @@ class Api::V2::InfoController < Api::V2::ApplicationController
                     "properties": {
                       "#{model.singularize}": {
                         "type": "object",
-                        "properties": create_properties_from_model(d, {})
+                        "properties": create_properties_from_model(d, {}, true)
                       }
                     }
                   }
@@ -660,7 +662,7 @@ class Api::V2::InfoController < Api::V2::ApplicationController
                     "properties": {
                       "#{model.singularize}": {
                         "type": "object",
-                        "properties": create_properties_from_model(d, {})
+                        "properties": create_properties_from_model(d, {}, true)
                       }
                     }
                   }
