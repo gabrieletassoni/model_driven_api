@@ -468,7 +468,7 @@ class Api::V2::InfoController < Api::V2::ApplicationController
                     "properties": {
                       "#{model.singularize}": {
                         "type": "object",
-                        "properties": create_properties_from_model(d, (d.json_attrs rescue {}))
+                        "properties": create_properties_from_model(d, {})
                       }
                     }
                   }
