@@ -121,36 +121,54 @@ class Api::V2::ApplicationController < ActionController::API
 
   private
 
+  ## CUSTOM ACTION
+  # [GET|PUT|POST|DELETE] :controller?do=:custom_action
+  # or
+  # [GET|PUT|POST|DELETE] :controller/:id?do=:
+  # or
+  # [GET|PUT|POST|DELETE] :controller?do=:custom_action-token
+  # or
+  # [GET|PUT|POST|DELETE] :controller/:id?do=:custom_action-token
+  # or
+  # [GET|PUT|POST|DELETE] :controller/custom_action/:custom_action
+  # or
+  # [GET|PUT|POST|DELETE] :controller/custom_action/:custom_action/:id
   def check_for_custom_action
-    ## CUSTOM ACTION
-    # [GET|PUT|POST|DELETE] :controller?do=:custom_action
-    # or
-    # [GET|PUT|POST|DELETE] :controller/:id?do=:custom_action
-    unless params[:do].blank?
-      # Poor man's solution to avoid the possibility to
-      # call an unwanted method in the AR Model.
-      custom_action, token = params[:do].split("-")
 
-      params[:request_url] = request.url
-      params[:remote_ip] = request.remote_ip
-      params[:token] = token.presence || bearer_token
-      # The endpoint can be expressed in two wayy:
-      # 1. As a method in the model, with suffix custom_action_<custom_action>
-      # 2. As a module instance method in the model, like Track::Endpoints.inventory
-      if defined?("Endpoints::#{@model}.#{custom_action}")
-        # Custom endpoint exists and can be called in the sub-modules form
-        body, status = "Endpoints::#{@model}".constantize.send(custom_action, params)
-      elsif @model.respond_to?("custom_action_#{custom_action}")
-        body, status = @model.send("custom_action_#{custom_action}", params)
-      else
-        # Custom endpoint does not exist or cannot be called
-        raise NoMethodError
-      end
-      
-      return true, body.to_json(json_attrs), status
+    custom_action, token = if !params[:do].blank?
+      # This also responds to custom actions which have the bearer token in the custom action name. A workaround to remove for some IoT devices
+      # Which don't support token in header or in querystring
+      # This is for backward compatibility and in future it can ben removed
+      params[:do].split("-")
+    elsif request.url.include? "/custom_action/"
+      [params[:action_name], nil]
+    else
+      # Not a custom action call
+      false
     end
-    # if it's here there is no custom action in the request querystring
-    return false
+    return false unless custom_action
+    # Poor man's solution to avoid the possibility to
+    # call an unwanted method in the AR Model.
+
+    # Adding some useful information to the params hash
+    params[:request_url] = request.url
+    params[:remote_ip] = request.remote_ip
+    params[:request_verb] = request.request_method
+    params[:token] = token.presence || bearer_token
+    # The endpoint can be expressed in two ways:
+    # 1. As a method in the model, with suffix custom_action_<custom_action>
+    # 2. As a module instance method in the model, like Track::Endpoints.inventory
+    if defined?("Endpoints::#{@model}.#{custom_action}")
+      # Custom endpoint exists and can be called in the sub-modules form
+      body, status = "Endpoints::#{@model}".constantize.send(custom_action, params)
+    elsif @model.respond_to?("custom_action_#{custom_action}")
+      body, status = @model.send("custom_action_#{custom_action}", params)
+    else
+      # Custom endpoint does not exist or cannot be called
+      raise NoMethodError
+    end
+    
+    return true, body.to_json(json_attrs), status
   end
 
   def bearer_token
@@ -209,9 +227,9 @@ class Api::V2::ApplicationController < ActionController::API
     @model = (params[:ctrl].classify.constantize rescue params[:path].split("/").first.classify.constantize rescue controller_path.classify.constantize rescue controller_name.classify.constantize rescue nil)
     # Getting the body of the request if it exists, it's ok the singular or
     # plural form, this helps with automatic tests with Insomnia.
-    @body = params[@model.model_name.singular].presence || params[@model.model_name.route_key]
+    @body = (params[@model.model_name.singular].presence || params[@model.model_name.route_key]) rescue params
     # Only ActiveRecords can have this model caputed
-    return not_found! if (!@model.new.is_a? ActiveRecord::Base rescue false)
+    return not_found! if (@model != TestApi && !@model.new.is_a?(ActiveRecord::Base) rescue false)
   end
 
   def check_authorization(cmd)

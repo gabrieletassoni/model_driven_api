@@ -516,6 +516,8 @@ class Api::V2::InfoController < Api::V2::ApplicationController
         }
         # Non CRUD or Search, but custom, usually bulk operations endpoints
         custom_actions = d.methods(false).select do |m| m.to_s.starts_with?("custom_action_") end
+        # Add also custom actions created using th enew Endpoints Interface
+        custom_actions += "Endpoints::#{d.model_name.name}".constantize.methods(false) rescue []
         custom_actions.each do |action|
           custom_action_name = action.to_s.gsub("custom_action_", "")
           pivot["/#{model}/custom_action/#{custom_action_name}"] = {
