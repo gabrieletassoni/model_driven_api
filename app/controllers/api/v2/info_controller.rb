@@ -521,7 +521,7 @@ class Api::V2::InfoController < Api::V2::ApplicationController
         custom_actions.each do |action|
           custom_action_name = action.to_s.gsub("custom_action_", "")
           pivot["/#{model}/custom_action/#{custom_action_name}"] = {
-            "post": {
+            "get": {
               "summary": "Custom Action #{custom_action_name.titleize}",
               "description": "This is just an example of a custom action, they can accept a wide range of payloads and response with a wide range of responses, also all verbs are valid. Please refer to the documentation for more information.",
               "tags": [model.classify],
