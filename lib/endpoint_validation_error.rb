@@ -1,0 +1,2 @@
+class EndpointValidationError < StandardError
+end

@@ -66,7 +66,6 @@ class Api::V2::ApplicationController < ActionController::API
 
   def create
     # Normal Create Action
-    @record = @model.new(@body)
     authorize! :create, @record
     # Custom Action
     status, result, status_number = check_for_custom_action
@@ -74,6 +73,7 @@ class Api::V2::ApplicationController < ActionController::API
     # Keeping this automation can be too dangerous and lead to unpredicted results
     # TODO: Remove it
     # @record.user_id = current_user.id if @model.column_names.include? "user_id"
+    @record = @model.new(@body)
     @record.save!
     render json: @record.to_json(json_attrs), status: 201
   end
@@ -158,11 +158,13 @@ class Api::V2::ApplicationController < ActionController::API
     # The endpoint can be expressed in two ways:
     # 1. As a method in the model, with suffix custom_action_<custom_action>
     # 2. As a module instance method in the model, like Track::Endpoints.inventory
-    if defined?("Endpoints::#{@model}.#{custom_action}")
-      # Custom endpoint exists and can be called in the sub-modules form
-      body, status = "Endpoints::#{@model}".constantize.send(custom_action, params)
-    elsif @model.respond_to?("custom_action_#{custom_action}")
+    # Example:
+    # Endpoints::TestApi.new(:test, {request_verb: "POST", is_connected: "Uhhhh"}).result
+    if @model.respond_to?("custom_action_#{custom_action}")
       body, status = @model.send("custom_action_#{custom_action}", params)
+    elsif ("Endpoints::#{@model}".constantize rescue false) && "Endpoints::#{@model}".constantize.instance_methods.include?(custom_action.to_sym)
+      # Custom endpoint exists and can be called in the sub-modules form
+      body, status = "Endpoints::#{@model}".constantize.new(custom_action, params).result
     else
       # Custom endpoint does not exist or cannot be called
       raise NoMethodError

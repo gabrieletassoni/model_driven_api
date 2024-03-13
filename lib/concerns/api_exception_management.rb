@@ -11,6 +11,7 @@ module ApiExceptionManagement
             rescue_from ActiveRecord::RecordInvalid, with: :invalid!
             rescue_from ActiveRecord::RecordNotFound, with: :not_found!
             rescue_from ActiveRecord::RecordNotUnique, with: :invalid!
+            rescue_from EndpointValidationError, with: :api_error
         end
         
         def unauthenticated! exception = AuthenticateUser::AccessDenied.new
@@ -34,7 +35,7 @@ module ApiExceptionManagement
             return api_error status: 500, errors: exception.message
         end
         
-        def api_error(status: 500, errors: [])
+        def api_error(status: 501, errors: [])
             # puts errors.full_messages if !Rails.env.production? && errors.respond_to?(:full_messages)
             head status && return if errors.blank?
             

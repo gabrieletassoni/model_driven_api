@@ -1,3 +1,5 @@
+require 'endpoint_validation_error'
+require 'non_crud_endpoints'
 require 'thecore_backend_commons'
 require 'rack/cors'
 require 'ransack'
