@@ -30,17 +30,17 @@ Rails.application.routes.draw do
             patch ":ctrl/custom_action/:action_name/:id", to: 'application#update'
             delete ":ctrl/custom_action/:action_name/:id", to: 'application#destroy'
             # Catchall routes
-            # # # CRUD Show
-            # get '*path/:id', to: 'application#show'
-            # # # CRUD Index
-            # get '*path', to: 'application#index'
-            # # # CRUD Create
-            # post '*path', to: 'application#create'
-            # # CRUD Update
+            # # CRUD Show
+            get '*path/:id', to: 'application#show'
+            # # CRUD Index
+            get '*path', to: 'application#index'
+            # # CRUD Create
+            post '*path', to: 'application#create'
+            # CRUD Update
             put '*path/:id/multi', to: 'application#update_multi'
             patch '*path/:id/multi', to: 'application#update_multi'
-            # put '*path/:id', to: 'application#update'
-            # patch '*path/:id', to: 'application#patch'
+            put '*path/:id', to: 'application#update'
+            patch '*path/:id', to: 'application#patch'
 
             # # CRUD Delete
             delete '*path/:id/multi', to: 'application#destroy_multi'

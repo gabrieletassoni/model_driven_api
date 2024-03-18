@@ -1,22 +1,3 @@
-# module Endpoints
-#   def self.method_missing(m, *args, &block)
-#     # return explain, 200 if m == :explain
-#     validate_request(m, *args, &block)
-#     if Endpoints::TestApi.methods.include?(m.to_s)
-#       Endpoints::TestApi.send(m, *args, &block)
-#     else
-#       super
-#     end
-#   end
-
-#   def self.validate_request definition, params
-#     return definition, 200 if params[:explain] == "true"
-#     # Raise a ValidationError if the request does not match the definition
-
-#     # Validate the request verb
-
-#     raise { error: "This method responds only to #{explain[:verbs].join(", ")} requests" }, 501 if explain[:verbs].exclude? params[:request_verb]
-#   end
 class Endpoints::TestApi < NonCrudEndpoints
   def test(params)
     # Define an explain var to be used to validate and document the action behavior when using ?explain=true in query string
