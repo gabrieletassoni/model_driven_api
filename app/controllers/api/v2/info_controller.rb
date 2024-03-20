@@ -515,49 +515,17 @@ class Api::V2::InfoController < Api::V2::ApplicationController
           }
         }
         # Non CRUD or Search, but custom, usually bulk operations endpoints
-        custom_actions = d.methods(false).select do |m| m.to_s.starts_with?("custom_action_") end
-        # Add also custom actions created using th enew Endpoints Interface
-        custom_actions += "Endpoints::#{d.model_name.name}".constantize.methods(false) rescue []
-        custom_actions.each do |action|
-          custom_action_name = action.to_s.gsub("custom_action_", "")
-          pivot["/#{model}/custom_action/#{custom_action_name}"] = {
-            "get": {
-              "summary": "Custom Action #{custom_action_name.titleize}",
-              "description": "This is just an example of a custom action, they can accept a wide range of payloads and response with a wide range of responses, also all verbs are valid. Please refer to the documentation for more information.",
-              "tags": [model.classify],
-              "security": [
-                "bearerAuth": []
-              ],
-              "responses": {
-                "200": {
-                  "description": "Custom Action",
-                  "content": {
-                    "application/json": {
-                      "schema": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "integer"
-                          },
-                          "created_at": {
-                            "type": "string",
-                            "format": "date-time"
-                          },
-                          "updated_at": {
-                            "type": "string",
-                            "format": "date-time"
-                          }
-                        }
-                      }
-                    }
-                  }
-                },
-                "404": {
-                  "description": "No #{model} found"
-                }
-              }
-            }
-          }
+        new_custom_actions = ("Endpoints::#{d.model_name.name}".constantize.instance_methods(false) rescue [])
+        # Rails.logger.debug "New Custom Actions (#{d.model_name.name}): #{new_custom_actions}"
+        new_custom_actions.each do |action|
+          openapi_definition = "Endpoints::#{d.model_name.name}".constantize.definitions[action.to_sym] rescue false
+          
+          # Add the tag to the openapi definition
+          openapi_definition.each do |k, v|
+            v[:tags] = [ d.model_name.name ]
+          end
+
+          pivot["/#{model}/custom_action/#{action}"] = openapi_definition if openapi_definition
         end
         pivot["/#{model}/search"] = {
           # Complex queries are made using ranskac search via a post endpoint
