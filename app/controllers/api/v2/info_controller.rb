@@ -139,7 +139,7 @@ class Api::V2::InfoController < Api::V2::ApplicationController
         "post": {
           "summary": "Authenticate",
           "tags": ["Authentication"],
-          "description": "Authenticate the user and return a JWT token in the header and the current user as body",
+          "description": "Authenticate the user and return a JWT token in the header and the current user as body.",
           "security": [
             "basicAuth": []
           ],
@@ -414,7 +414,7 @@ class Api::V2::InfoController < Api::V2::ApplicationController
       "/info/swagger": {
         "get": {
           "summary": "Swagger",
-          "description": "Returns the Swagger",
+          "description": "Returns the self generated Swagger for all the models in the App.",
           "tags": ["Info"],
           "responses": {
             "200": {
