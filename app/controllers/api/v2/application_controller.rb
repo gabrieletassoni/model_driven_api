@@ -9,7 +9,7 @@ class Api::V2::ApplicationController < ActionController::API
 
   before_action :authenticate_request
   before_action :extract_model
-  before_action :find_record, only: [:show, :destroy, :update]
+  before_action :find_record, only: [:show, :destroy, :update, :patch]
 
   # GET :controller/
   def index
@@ -90,6 +90,9 @@ class Api::V2::ApplicationController < ActionController::API
     @record.respond_to?("update_attributes!") ? @record.update_attributes!(@body) : @record.update!(@body)
     render json: @record.to_json(json_attrs), status: 200
   end
+
+  # Define the path method as an alias to the update one, they are basically the same method
+  alias_method :patch, :update
 
   def update_multi
     authorize! :update, @model

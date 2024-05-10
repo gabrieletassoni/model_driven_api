@@ -44,7 +44,7 @@ Rails.application.routes.draw do
 
             # # CRUD Delete
             delete '*path/:id/multi', to: 'application#destroy_multi'
-            # delete '*path/:id', to: 'application#destroy'
+            delete '*path/:id', to: 'application#destroy'
         end
     end
 end
