@@ -4,9 +4,16 @@ class NonCrudEndpoints
     self.definitions = {}
     # Add a validation method which will be inherited by all the instances, and automatically run before any method call
     def initialize(m, params)
-        # Check if self hase the m method, if not, raise a NoMethodError
+        # Rails.logger.debug "Initializing NonCrudEndpoints"
+        # Showing the class name of the instance, and also, if there's a class inheriting from this one, the name of the child class
+        # Rails.logger.debug "Class: #{self.class.name} - Child Class: #{self.class.superclass.name if self.class.superclass != Object}"
+        # Check if self has the m method, if not, raise a NoMethodError
         raise NoMethodError, "The method #{m} does not exist in #{self.class.name}" unless self.respond_to? m
-        @definition = self.definitions[m.to_sym].with_indifferent_access
+        # To avoid having conflicting keys from different classes, we will use a two levels object to store the definitions
+        # the first level is the class name, and the second level is the method name
+        self.definitions[self.class.name] ||= {}
+        self.definitions[self.class.name][m.to_sym] ||= {}
+        @definition = self.definitions[self.class.name][m.to_sym].with_indifferent_access
 
         # self.send(m, { explain: true }) rescue []
         validate_request(params)
@@ -25,8 +32,9 @@ class NonCrudEndpoints
 
     private
 
-    def self.desc(key, definition)
-        self.definitions[key] = definition
+    def self.desc(endpoint, key, definition)
+        self.definitions[endpoint] ||= {}
+        self.definitions[endpoint][key] = definition
     end
 
     def get_type(type)

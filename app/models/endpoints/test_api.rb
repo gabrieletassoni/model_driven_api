@@ -1,5 +1,5 @@
 class Endpoints::TestApi < NonCrudEndpoints
-  self.desc :test, {
+  self.desc 'TestApi', :test, {
     # Define the action name using openapi swagger format
     get: {
       summary: "Test API Custom Action",

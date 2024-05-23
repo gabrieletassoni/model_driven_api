@@ -516,9 +516,9 @@ class Api::V2::InfoController < Api::V2::ApplicationController
         }
         # Non CRUD or Search, but custom, usually bulk operations endpoints
         new_custom_actions = ("Endpoints::#{d.model_name.name}".constantize.instance_methods(false) rescue [])
-        # Rails.logger.debug "New Custom Actions (#{d.model_name.name}): #{new_custom_actions}"
+        Rails.logger.debug "New Custom Actions (#{d.model_name.name}): #{new_custom_actions}"
         new_custom_actions.each do |action|
-          openapi_definition = "Endpoints::#{d.model_name.name}".constantize.definitions[action.to_sym] rescue false
+          openapi_definition = "Endpoints::#{d.model_name.name}".constantize.definitions[d.model_name.name][action.to_sym] rescue []
           
           # Add the tag to the openapi definition
           openapi_definition.each do |k, v|
