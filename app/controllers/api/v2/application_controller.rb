@@ -163,6 +163,7 @@ class Api::V2::ApplicationController < ActionController::API
     # 2. As a module instance method in the model, like Track::Endpoints.inventory
     # Example:
     # Endpoints::TestApi.new(:test, {request_verb: "POST", is_connected: "Uhhhh"}).result
+    Rails.logger.debug("Checking for custom action #{custom_action} in #{@model}")
     if @model.respond_to?("custom_action_#{custom_action}")
       body, status = @model.send("custom_action_#{custom_action}", params)
     elsif ("Endpoints::#{@model}".constantize rescue false) && "Endpoints::#{@model}".constantize.instance_methods.include?(custom_action.to_sym)
