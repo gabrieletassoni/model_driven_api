@@ -46,7 +46,10 @@ class Api::V2::InfoController < Api::V2::ApplicationController
         pivot[model][:associations] ||= {
           has_many: d.reflect_on_all_associations(:has_many).map { |a| 
             a.name if (((a.options[:class_name].presence || a.name).to_s.classify.constantize.new.is_a? ApplicationRecord) rescue false)
-          }.compact, 
+          }.compact,
+          has_one: d.reflect_on_all_associations(:has_one).map { |a|
+            a.name if (((a.options[:class_name].presence || a.name).to_s.classify.constantize.new.is_a? ApplicationRecord) rescue false)
+          }.compact,
           belongs_to: d.reflect_on_all_associations(:belongs_to).map { |a| 
             a.name if (((a.options[:class_name].presence || a.name).to_s.classify.constantize.new.is_a? ApplicationRecord) rescue false)
           }.compact
