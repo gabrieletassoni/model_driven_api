@@ -53,7 +53,7 @@ class Api::V2::ApplicationController < ActionController::API
   end
 
   def show
-    authorize! :show, @record_id
+    authorize! :show, @record_id.presence || @model
 
     # Custom Show Action
     status, result, status_number = check_for_custom_action
@@ -66,7 +66,8 @@ class Api::V2::ApplicationController < ActionController::API
 
   def create
     # Normal Create Action
-    authorize! :create, @record
+    Rails.logger.debug("Creating a new record #{@record}")
+    authorize! :create, @record.presence || @model
     # Custom Action
     status, result, status_number = check_for_custom_action
     return render json: result, status: (status_number.presence || 200) if status == true
@@ -79,7 +80,7 @@ class Api::V2::ApplicationController < ActionController::API
   end
 
   def update
-    authorize! :update, @record
+    authorize! :update, @record.presence || @model
 
     # Custom Action
     status, result, status_number = check_for_custom_action
@@ -102,7 +103,7 @@ class Api::V2::ApplicationController < ActionController::API
   end
 
   def destroy
-    authorize! :destroy, @record
+    authorize! :destroy, @record.presence || @model
 
     # Custom Action
     status, result, status_number = check_for_custom_action
