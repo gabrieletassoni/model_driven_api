@@ -6,9 +6,12 @@ class Api::V2::RawController < Api::V2::ApplicationController
   
   # api :GET, '/api/v2/raw/sql'
   def sql
+    # if params is nil, render 400
+    render json: { error: "Query is required" }, status: 400 and return if params[:query].nil?
+
     query = params[:query]
 
-    render json: SafeSqlExecutor.execute_select(query).first&["json_agg"], status: 200
+    render json: SafeSqlExecutor.execute_select(query).first["json_agg"], status: 200
   end
 
 end
