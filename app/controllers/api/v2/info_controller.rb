@@ -198,6 +198,94 @@ class Api::V2::InfoController < Api::V2::ApplicationController
           }
         }
       },
+      "/raw/sql": {
+        "post": {
+          "summary": "Raw SQL query execution of SELECT queries",
+          "description": "Executes a SQL query on the underlying PostgreSQL database. 
+          Designed for SELECT queries that use the json_agg function to aggregate results into JSON arrays. 
+          Other query types are not recommended and may be restricted for security and performance reasons. 
+          Only SELECT statements are allowed. DDL and DML statements (INSERT, UPDATE, DELETE) are forbidden.
+          Queries can be as simple as 
+          
+            SELECT json_agg(u) AS result
+            FROM users u
+            WHERE u.active = true;
+
+          or more complex, using joins, subqueries, CTEs, and other SQL features. like:
+
+            WITH order_details AS (
+                SELECT 
+                    o.id AS order_id,
+                    o.date AS order_date,
+                    json_agg(
+                        json_build_object(
+                            'item_id', i.id,
+                            'item_name', i.name,
+                            'quantity', oi.quantity,
+                            'price', oi.price
+                        )
+                    ) AS items
+                FROM orders o
+                JOIN order_items oi ON o.id = oi.order_id
+                JOIN items i ON i.id = oi.item_id
+                GROUP BY o.id
+            )
+            SELECT json_agg(
+                json_build_object(
+                    'order_id', od.order_id,
+                    'order_date', od.order_date,
+                    'customer', json_build_object(
+                        'id', c.id,
+                        'name', c.name
+                    ),
+                    'items', od.items
+                )
+            ) AS result
+            FROM order_details od
+            JOIN customers c ON c.id = od.order_id;
+            
+          ",
+          "tags": ["Raw"],
+          "security": [
+            "bearerAuth": []
+          ],
+          "responses": {
+            "200": {
+              "description": "SQL Query Result",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "json_agg": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "query": {
+                      "type": "string",
+                      "example": "SELECT json_agg(u) FROM users u WHERE u.active = true;"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       "/info/version": {
         "get": {
           "summary": "Version",

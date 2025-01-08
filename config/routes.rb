@@ -18,6 +18,10 @@ Rails.application.routes.draw do
                 get :openapi
             end
 
+            namespace :raw do
+              post :sql
+            end
+
             post "authenticate" => "authentication#authenticate"
             post ":ctrl/search" => 'application#index'
 

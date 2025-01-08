@@ -15,6 +15,8 @@ require 'deep_merge/rails_compat'
 
 require "model_driven_api/engine"
 
+require "safe_sql_executor"
+
 module ModelDrivenApi
   def self.smart_merge src, dest
       src.deeper_merge! dest, {
