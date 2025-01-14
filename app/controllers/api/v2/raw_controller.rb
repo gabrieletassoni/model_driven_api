@@ -11,7 +11,12 @@ class Api::V2::RawController < Api::V2::ApplicationController
 
     query = params[:query]
 
-    render json: SafeSqlExecutor.execute_select(query).first["json_agg"], status: 200
+    first_element = SafeSqlExecutor.execute_select(query).first rescue nil
+
+    # Error if first_element does not contain a key called results
+    render json: { error: "Query must return a key called result" }, status: 400 and return if first_element.nil? || !first_element.key?("result")
+
+    render json: first_element["result"], status: 200
   end
 
 end

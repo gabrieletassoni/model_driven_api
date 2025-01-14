@@ -201,54 +201,7 @@ class Api::V2::InfoController < Api::V2::ApplicationController
       "/raw/sql": {
         "post": {
           "summary": "Raw SQL query execution of SELECT queries",
-          "description": "Executes a SQL query on the underlying PostgreSQL database.
-
-Designed for SELECT queries that use the json_agg function to aggregate results into JSON arrays. 
-
-Other query types are not recommended and may be restricted for security and performance reasons. 
-
-Only SELECT statements are allowed. DDL and DML statements (INSERT, UPDATE, DELETE) are forbidden.
-
-Queries can be as simple as 
-          
-    SELECT json_agg(u) AS result
-    FROM users u
-    WHERE u.active = true;
-
-or more complex, using joins, subqueries, CTEs, and other SQL features. like:
-
-    WITH order_details AS (
-        SELECT 
-            o.id AS order_id,
-            o.date AS order_date,
-            json_agg(
-                json_build_object(
-                    'item_id', i.id,
-                    'item_name', i.name,
-                    'quantity', oi.quantity,
-                    'price', oi.price
-                )
-            ) AS items
-        FROM orders o
-        JOIN order_items oi ON o.id = oi.order_id
-        JOIN items i ON i.id = oi.item_id
-        GROUP BY o.id
-    )
-    SELECT json_agg(
-        json_build_object(
-            'order_id', od.order_id,
-            'order_date', od.order_date,
-            'customer', json_build_object(
-                'id', c.id,
-                'name', c.name
-            ),
-            'items', od.items
-        )
-    ) AS result
-  FROM order_details od
-  JOIN customers c ON c.id = od.order_id;
-
-          ",
+          "description": "Executes a SQL query on the underlying PostgreSQL database, the query must return the JSON in a **result** key (please note in the examples the _SELECT json_agg(u) AS result_ or in the more complex one the _SELECT jsonb_agg(pick_data) AS result_, they always use the **result** return object).\n \nDesigned for SELECT queries that use the json_agg function to aggregate results into JSON arrays, which must return the JSON in a **result** key.\n \nOther query types are not recommended and may be restricted for security and performance reasons.\n \nOnly SELECT statements are allowed. DDL and DML statements (INSERT, UPDATE, DELETE) are forbidden.\n \nQueries can be as simple as:\n \n```sql\nSELECT json_agg(u) AS result\nFROM users u\nWHERE u.active = true;\n```\n \nor more complex, using joins, subqueries, CTEs, and other SQL features. like:\n \n```sql\nWITH pick_data AS (\n   SELECT p.id,\n      p.project_id,\n      p.quantity,\n      p.created_at,\n      p.updated_at,\n      p.notes,\n      p.document_id,\n      p.external_code,\n      p.reference_project_id,\n      p.reference_row,\n      p.closed,\n      p.parent_reference_row,\n      p.packages,\n      p.weight,\n      p.dispatched_quantity,\n      p.override_item_reference,\n      p.override_item_description,\n      p.override_item_measure_unit,\n      p.lock_version,\n      p.user_id,\n      COALESCE(SUM(pr.quantity), 0) AS quantity_detected,\n      COALESCE(p.quantity, 0) - COALESCE(SUM(pr.quantity), 0) AS quantity_remaining,\n      json_agg(\n         jsonb_build_object(\n            'id',\n            pr.id,\n            'item_id',\n            pr.item_id,\n            'location_id',\n            pr.location_id,\n            'quantity',\n            pr.quantity\n         )\n      ) AS project_rows,\n      jsonb_build_object(\n         'id',\n         l.id,\n         'name',\n         l.name,\n         'description',\n         l.description\n      ) AS location,\n      jsonb_build_object(\n         'id',\n         i.id,\n         'code',\n         i.code,\n         'created_at',\n         i.created_at,\n         'updated_at',\n         i.updated_at,\n         'description',\n         i.description,\n         'has_serials',\n         i.has_serials,\n         'external_code',\n         i.external_code,\n         'barcode',\n         i.barcode,\n         'weight',\n         i.weight,\n         'quantity',\n         i.quantity,\n         'package_quantity',\n         i.package_quantity,\n         'locked_quantity',\n         i.locked_quantity,\n         'disabled',\n         i.disabled,\n         'measure_unit',\n         jsonb_build_object('id', mu.id, 'name', mu.name),\n         'location',\n         jsonb_build_object('id', il.id, 'name', il.name),\n         'locations',\n         (\n            SELECT jsonb_agg(\n                  jsonb_build_object('id', loc.id, 'name', loc.name)\n               )\n            FROM locations loc\n               JOIN item_locations il ON il.location_id = loc.id\n            WHERE il.item_id = i.id\n         ),\n         'additional_barcodes',\n         (\n            SELECT jsonb_agg(\n                  jsonb_build_object('id', ab.id, 'code', ab.code)\n               )\n            FROM additional_barcodes ab\n            WHERE ab.item_id = i.id\n         )\n      ) AS item\n   FROM picks p\n      LEFT JOIN project_rows pr ON pr.pick_id = p.id\n      LEFT JOIN locations l ON l.id = p.location_id\n      LEFT JOIN items i ON i.id = p.item_id\n      LEFT JOIN measure_units mu ON mu.id = i.measure_unit_id\n      LEFT JOIN locations il ON il.id = i.location_id\n   WHERE p.project_id = 16130\n   GROUP BY p.id,\n      l.id,\n      i.id,\n      mu.id,\n      il.id\n)\nSELECT jsonb_agg(pick_data) AS result\nFROM pick_data;\n```\n \nLet's break down the provided SQL query and understand why it uses a Common Table Expression (CTE) and how it can improve performance.\n \n### Explanation of the complex Query\n \nThe provided query uses a CTE named `pick_data` to gather and aggregate data from multiple tables (`picks`, `project_rows`, `locations`, `items`, `measure_units`, `item_locations`, and `additional_barcodes`). The final result is a JSON array of aggregated data.\n \n#### Key Components of the Query:\n \n1. **CTE Definition**:\n \n   ```sql\n   WITH pick_data AS (\n     -- Subquery content\n   )\n   ```\n \n   The CTE `pick_data` is defined to encapsulate the logic of the subquery. This makes the query more readable and modular.\n \n2. **Data Selection and Aggregation**:\n   Inside the CTE, data is selected and aggregated from various tables. Key operations include:\n \n   - **Column Selection**: Selecting specific columns from the `picks` table.\n   - **Aggregation**: Using `COALESCE` and `SUM` to calculate `quantity_detected` and `quantity_remaining`.\n   - **JSON Aggregation**: Using `json_agg` and `jsonb_build_object` to create JSON objects and arrays for nested data structures.\n \n3. **Final Selection**:\n   ```sql\n   SELECT jsonb_agg(pick_data) AS result FROM pick_data;\n   ```\n   The final selection aggregates all rows from the CTE `pick_data` into a single JSON array.\n \n### Why Use a CTE?\n \n1. **Readability and Maintainability**:\n \n   - **Modular Code**: By using a CTE, the complex logic is encapsulated in a named subquery, making the main query easier to read and understand.\n   - **Reusability**: The CTE can be reused within the same query if needed, avoiding duplication of code.\n \n2. **Performance**:\n   - **Optimization**: Modern SQL engines can optimize CTEs effectively. They can be materialized (computed once and stored) or inlined (expanded in the main query) based on the query plan.\n   - **Intermediate Results**: CTEs allow breaking down complex queries into simpler steps, which can sometimes help the SQL engine optimize each step more effectively.\n \n### Documentation for Editing Generic Queries\n \nWhen editing or creating new queries, consider the following steps and best practices:\n \n1. **Identify the Purpose**:\n \n   - Clearly define what the query needs to achieve. Understand the data relationships and the final output format.\n \n2. **Use CTEs for Complex Logic**:\n \n   - Break down complex queries into smaller, manageable parts using CTEs. This improves readability and maintainability.\n \n3. **Optimize Aggregations and Joins**:\n \n   - Ensure that aggregations and joins are optimized. Use indexes where appropriate and avoid unnecessary computations.\n \n4. **Leverage JSON Functions**:\n \n   - Use JSON functions (`json_agg`, `jsonb_build_object`, etc.) to handle nested data structures effectively.\n \n5. **Test and Validate**:\n   - Test the query with different datasets to ensure it performs well and returns the correct results. Validate the output format.\n \n### Example of a Generic Query Using CTE\n \nHere's a generic example to illustrate how to use a CTE in a query:\n \n```sql\n \n\nWITH data_aggregation AS (\n  SELECT\n    t1.id,\n    t1.name,\n    SUM(t2.value) AS total_value,\n    json_agg(\n      jsonb_build_object(\n        'id', t2.id,\n        'value', t2.value\n      )\n    ) AS details\n  FROM table1 t1\n  LEFT JOIN table2 t2 ON t2.table1_id = t1.id\n  GROUP BY t1.id\n)\nSELECT jsonb_agg(data_aggregation) AS result FROM data_aggregation;\n```\n \n### Conclusion\n \nUsing CTEs in SQL queries helps in organizing complex logic, improving readability, and potentially enhancing performance. When editing or creating new queries, follow best practices such as breaking down complex logic, optimizing joins and aggregations, and leveraging JSON functions for nested data structures.\n",
           "tags": ["Raw"],
           "security": [
             "bearerAuth": []
@@ -271,7 +224,23 @@ or more complex, using joins, subqueries, CTEs, and other SQL features. like:
                   }
                 }
               }
+            },
+            "400": {
+              "description": "SQL query must return a key called result otherwise cannot be parsed",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "error": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
             }
+
           },
           "requestBody": {
             "content": {
