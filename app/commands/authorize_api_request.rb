@@ -14,17 +14,28 @@ class AuthorizeApiRequest
     attr_reader :headers
     
     def api_user
+        Rails.logger.debug "AuthorizeApiRequest: api_user -> #{decoded_auth_token}"
         @api_user ||= User.find(decoded_auth_token[:user_id]) if decoded_auth_token
-        @api_user || errors.add(:token, "Invalid token") && nil
+        if @api_user
+            return @api_user
+        else
+            errors.add(:token, "Invalid token")
+            return nil
+        end
     end
     
     def decoded_auth_token
+        Rails.logger.debug "AuthorizeApiRequest: http_auth_header -> #{http_auth_header}"
         @decoded_auth_token ||= JsonWebToken.decode(http_auth_header)
+        @decoded_auth_token
     end
     
     def http_auth_header
+        Rails.logger.debug "AuthorizeApiRequest: Authorization -> #{headers['Authorization']}"
         if headers['Authorization'].present?
-            return headers['Authorization'].split(' ').last
+            token = headers['Authorization'].split(' ').last
+            Rails.logger.debug "AuthorizeApiRequest: token -> #{token}"
+            return token
         else
             errors.add(:token, "Missing token")
         end

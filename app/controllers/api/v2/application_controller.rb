@@ -195,8 +195,10 @@ class Api::V2::ApplicationController < ActionController::API
     @current_user = nil
     Settings.ns(:security).allowed_authorization_headers.split(",").each do |header|
       # puts "Found header #{header}: #{request.headers[header]}"
-      check_authorization("Authorize#{header}".constantize.call(request))
+      check_authorization("Authorize#{header}".constantize.call(request)) unless @current_user
     end
+
+    Rails.logger.debug("Checking for authorization with AuthorizeApiRequest if current_user not already present -> current_user: #{@current_user}")
 
     check_authorization AuthorizeApiRequest.call(request) unless @current_user
     return unauthenticated!(OpenStruct.new({ message: @auth_errors })) unless @current_user
@@ -240,6 +242,7 @@ class Api::V2::ApplicationController < ActionController::API
   end
 
   def check_authorization(cmd)
+    Rails.logger.debug("Checking authorization: #{cmd.inspect}")
     if cmd.success?
       @current_user = cmd.result
     else
