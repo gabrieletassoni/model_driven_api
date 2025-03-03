@@ -44,7 +44,7 @@ class Api::V2::ApplicationController < ActionController::API
     # puts "If it's asked for page number, then paginate"
     return render json: @records.as_json(json_attrs), status: status if !page.blank? # (@json_attrs || {})
     #puts "if you ask for count, then return a json object with just the number of objects"
-    return render json: { count: @records_all.count } if !count.blank?
+    return render json: { count: @records_all.size } if !count.blank?
     #puts "Default"
     json_out = @records_all.as_json(json_attrs)
     #puts "JSON ATTRS: #{json_attrs}"
