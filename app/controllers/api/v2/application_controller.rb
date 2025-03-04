@@ -29,7 +29,8 @@ class Api::V2::ApplicationController < ActionController::API
     per = (@per.presence || params[:per])
     # pages_info = (@pages_info.presence || params[:pages_info])
     count = (@count.presence || params[:count])
-    @records_count = @q.result.count
+    @records_count = @q.result.length
+    Rails.logger.debug("Found #{@records_count.inspect} records")
     @records_all = @q.result
     # Pagination
     @records = @q.result.page(page).per(per) # (distinct: true) Removing, but I'm not sure, with it I cannot sort in postgres for associated records (throws an exception on misuse of sort with distinct)
