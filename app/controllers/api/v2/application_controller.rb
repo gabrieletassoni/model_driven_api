@@ -23,28 +23,28 @@ class Api::V2::ApplicationController < ActionController::API
     # Keeping this automation can be too dangerous and lead to unpredicted results
     # TODO: Remove it
     # @q = (@model.column_names.include?("user_id") ? @model.where(user_id: current_user.id) : @model).ransack(@query.presence|| params[:q])
+    Rails.logger.debug("Querying for #{@model} with #{@query}: #{@query.presence || params[:q]}")
     @q = @model.ransack(@query.presence || params[:q])
-    @records_all = @q.result # (distinct: true) Removing, but I'm not sure, with it I cannot sort in postgres for associated records (throws an exception on misuse of sort with distinct)
     page = (@page.presence || params[:page])
     per = (@per.presence || params[:per])
     # pages_info = (@pages_info.presence || params[:pages_info])
     count = (@count.presence || params[:count])
+    @records_count = @q.result.length
+    Rails.logger.debug("Found #{@records_count.inspect} records")
+    @records_all = @q.result
     # Pagination
-    @records = @records_all.page(page).per(per)
+    @records = @q.result.page(page).per(per) # (distinct: true) Removing, but I'm not sure, with it I cannot sort in postgres for associated records (throws an exception on misuse of sort with distinct)
     # Content-Range: posts 0-4/27
     range_start = [(page.to_i - 1) * per.to_i, 0].max
     range_end = [0, page.to_i * per.to_i - 1].max
     response.set_header("Content-Range", "#{@model.table_name} #{range_start}-#{range_end}/#{@records.total_count}")
 
-    # If there's the keyword pagination_info, then return a pagination info object
-    # return render json: {count: @records_all.count,current_page_count: @records.count,next_page: @records.next_page,prev_page: @records.prev_page,is_first_page: @records.first_page?,is_last_page: @records.last_page?,is_out_of_range: @records.out_of_range?,pages_count: @records.total_pages,current_page_number: @records.current_page } if !pages_info.blank?
-
     # puts "ALL RECORDS FOUND: #{@records_all.inspect}"
-    status = @records_all.blank? ? 404 : 200
+    status = @records_count.zero? ? 404 : 200
     # puts "If it's asked for page number, then paginate"
     return render json: @records.as_json(json_attrs), status: status if !page.blank? # (@json_attrs || {})
     #puts "if you ask for count, then return a json object with just the number of objects"
-    return render json: { count: @records_all.size } if !count.blank?
+    return render json: { count: @records_count } if !count.blank?
     #puts "Default"
     json_out = @records_all.as_json(json_attrs)
     #puts "JSON ATTRS: #{json_attrs}"
