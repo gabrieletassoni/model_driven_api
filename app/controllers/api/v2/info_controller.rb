@@ -2,7 +2,7 @@
 class Api::V2::InfoController < Api::V2::ApplicationController
   # Info uses a different auth method: username and password
   skip_before_action :authenticate_request, only: [:version, :swagger, :openapi], raise: false
-  skip_before_action :extract_model
+  skip_before_action :extract_model, except: [:heartbeat]
   
   # api :GET, '/api/v2/info/version', "Just prints the APPVERSION."
   def version
@@ -19,7 +19,7 @@ class Api::V2::InfoController < Api::V2::ApplicationController
   # api :GET, '/api/v2/info/heartbeat'
   # Just keeps the session alive by returning a new token
   def heartbeat
-    head :ok
+    render json: current_user.to_json, status: 200
   end
 
   # GET '/api/v2/info/translations'
