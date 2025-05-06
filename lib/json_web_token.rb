@@ -10,11 +10,12 @@ class JsonWebToken
     
     def decode(token)
       # Check if the passed token is present and valid into the UsedToken 
-      raise "Token is invalidated by new login" unless UsedToken.exists?(token: token, is_valid: true) if ENV["ALLOW_MULTISESSIONS"] == "false"
+      raise "Token is invalidated by new login" if !UsedToken.exists?(token: token, is_valid: true) && ENV["ALLOW_MULTISESSIONS"] == "false"
       body = ::JWT.decode(token, ::Rails.application.credentials.dig(:secret_key_base).presence||ENV["SECRET_KEY_BASE"])[0]
+      Rails.logger.debug "JsonWebToken: decode -> body -> #{body}"
       ::HashWithIndifferentAccess.new body
-    rescue
-      nil
+    # rescue
+    #   nil
     end
   end
 end

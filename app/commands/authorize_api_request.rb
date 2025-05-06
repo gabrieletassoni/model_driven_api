@@ -25,16 +25,16 @@ class AuthorizeApiRequest
     end
     
     def decoded_auth_token
-        Rails.logger.debug "AuthorizeApiRequest: http_auth_header -> #{http_auth_header}"
+        Rails.logger.debug "AuthorizeApiRequest: decoded_auth_token -> http_auth_header -> #{http_auth_header}"
         @decoded_auth_token ||= JsonWebToken.decode(http_auth_header)
         @decoded_auth_token
     end
     
     def http_auth_header
-        Rails.logger.debug "AuthorizeApiRequest: Authorization -> #{headers['Authorization']}"
+        Rails.logger.debug "AuthorizeApiRequest: http_auth_header - Authorization -> #{headers['Authorization']}"
         if headers['Authorization'].present?
             token = headers['Authorization'].split(' ').last
-            Rails.logger.debug "AuthorizeApiRequest: token -> #{token}"
+            Rails.logger.debug "AuthorizeApiRequest: http_auth_header - token -> #{token}"
             return token
         else
             errors.add(:token, "Missing token")

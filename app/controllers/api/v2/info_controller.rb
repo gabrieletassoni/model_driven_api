@@ -61,15 +61,18 @@ class Api::V2::InfoController < Api::V2::ApplicationController
   end
 
   def compute_type(model, key)
+    Rails.logger.debug "compute_type #{model} #{key}"
     # if it's a file, a date or a text, then return string
     instance = model.new
     # If it's a method, it is a peculiar case, in which we have to return "object" and additionalProperties: true
     return "method" if model.methods.include?(:json_attrs) && model.json_attrs && model.json_attrs.include?(:methods) && model.json_attrs[:methods].include?(key.to_sym)
     # If it's not the case of a method, then it's a field
     method_class = instance.send(key).class.to_s
+    Rails.logger.debug "compute_type #{model} #{key} #{method_class}"
     method_key = model.columns_hash[key]
     
     # Not columns
+    return nil if method_key.nil?
     return "object" if method_class == "ActiveStorage::Attached::One"
     return "array" if method_class == "ActiveStorage::Attached::Many" || method_class == "Array" || method_class.ends_with?("Array") || method_class.ends_with?("Collection") || method_class.ends_with?("Relation") || method_class.ends_with?("Set") || method_class.ends_with?("List") || method_class.ends_with?("Queue") || method_class.ends_with?("Stack") || method_class.ends_with?("ActiveRecord_Associations_CollectionProxy")
     
@@ -132,7 +135,7 @@ class Api::V2::InfoController < Api::V2::ApplicationController
         [k, { "type": "array", "items": { "type": "object", "properties": properties } }] rescue nil
       else
         [k, { "type": type }]
-      end
+      end unless type.blank?
     end.compact.to_h
   end
   
