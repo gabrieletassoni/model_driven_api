@@ -87,8 +87,10 @@ class Api::V2::ApplicationController < ActionController::API
     return render json: result, status: (status_number.presence || 200) if status == true
 
     # Normal Update Action
-    # Rails 6 vs Rails 6.1
-    @record.respond_to?("update_attributes!") ? @record.update_attributes!(@body) : @record.update!(@body)
+    # Use save! to be sure to raise an exception if the record is not valid and to trigger all the callbacks for the model during update
+    Rails.logger.debug("############################## Updating record #{@record}")
+    @record.update!(@body)
+
     render json: @record.to_json(json_attrs), status: 200
   end
 
