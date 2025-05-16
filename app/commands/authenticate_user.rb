@@ -37,6 +37,9 @@ class AuthenticateUser
             user = nil if user.blank? || user.authenticate(password).blank?
         end
 
+        #Try to authenticate the user against LDAP if user is not present at this point
+        user = Ldap::Authenticator.new(email: email, password: password).authenticate if user.blank?
+
         raise AccessDenied unless user.present?
         
         return user
