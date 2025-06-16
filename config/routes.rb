@@ -1,18 +1,17 @@
 # require 'ransack'
 
 Rails.application.routes.draw do
-    # REST API (Stateless)
-
     scope ENV.fetch("RAILS_RELATIVE_URL_ROOT", "/") do
         namespace :api, constraints: { format: :json } do
             namespace :v2 do
                 # Authentication via Oauth2 only if the environment variable is set
                 if (ENV['ENTRA_CLIENT_ID'].present? && ENV['ENTRA_CLIENT_SECRET'].present?) || (ENV['GOOGLE_CLIENT_ID'].present? && ENV['GOOGLE_CLIENT_SECRET'].present?)
-                    # Omniauth routes for OAuth2 authentication
-                    # get 'auth/:provider', to: 'oauth#authorize', as: :oauth_authorize
-                    get 'auth/:provider/callback', to: 'oauth#callback'
-                    get 'auth/failure', to: 'oauth#failure'
-                    post 'auth/jwt', to: 'oauth#exchange_token' # Optional endpoint to allow frontends to send the OAuth token
+                    namespace :auth do
+                        # Omniauth routes for OAuth2 authentication
+                        get ':provider/callback', to: 'oauth#callback'
+                        get :failure, to: 'oauth#failure'
+                        post :jwt, to: 'oauth#exchange_token' # Optional endpoint to allow frontends to send the OAuth token
+                    end
                 end
 
                 resources :users
