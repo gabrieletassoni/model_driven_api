@@ -1,10 +1,15 @@
-module Api::V2
+module Api::V2::Auth
   class OauthController < ActionController::API
     def callback
-      auth_hash = request.env['omniauth.auth']
-      email = auth_hash['info']['email']
+      email = params['email']
 
-      user = User.find_by(email: email)
+      user = User.find_or_create_by(email: email) do |u|
+        u.name = params['given_name']
+        u.surname = params['family_name']
+        u.password = u.password_confirmation = ThecoreAuthCommons.generate_secure_password
+        u.auth_source = params['provider'] # 'google' or 'microsoft'
+        u.admin = true
+      end
       unless user
         render json: { error: "User not registered" }, status: :unauthorized
         return
@@ -17,8 +22,10 @@ module Api::V2
         UsedToken.create!(token: token, user_id: user.id)
       end
 
-      redirect_url = "#{ENV['FRONTEND_URL']}?token=#{token}"
-      redirect_to redirect_url
+      # redirect_url = "#{ENV['FRONTEND_URL']}?token=#{token}"
+      # redirect_to redirect_url
+      response.set_header("Token", JsonWebToken.encode(user_id: user.id))
+      render json: user, status: :ok
     end
 
     def failure
@@ -57,8 +64,8 @@ module Api::V2
         return render json: { error: "User not registered" }, status: :unauthorized
       end
 
-      jwt = JsonWebToken.encode(user_id: user.id)
-      render json: { jwt: jwt }
+      response.set_header("Token", JsonWebToken.encode(user_id: user.id))
+      render json: user, status: :ok
     end
   end
 end
