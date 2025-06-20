@@ -42,9 +42,5 @@ Gem::Specification.new do |spec|
   # https://github.com/danielsdeleo/deep_merge
   spec.add_dependency "deep_merge", '~> 1.2'
 
-  spec.add_dependency 'omniauth', '~> 2.1'
-  spec.add_dependency 'omniauth-google-oauth2', "~> 1.2"
-  spec.add_dependency 'omniauth-entra-id', "~> 3.0"
-
   spec.add_development_dependency 'sqlite3'
 end

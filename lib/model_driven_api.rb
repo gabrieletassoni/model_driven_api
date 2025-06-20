@@ -13,10 +13,6 @@ require 'concerns/api_exception_management'
 
 require 'deep_merge/rails_compat'
 
-require 'omniauth'
-require 'omniauth-google-oauth2'
-require 'omniauth-entra-id'
-
 require "model_driven_api/engine"
 
 require "safe_sql_executor"
