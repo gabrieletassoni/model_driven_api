@@ -1,9 +1,8 @@
 # require 'ransack'
 
 Rails.application.routes.draw do
-    oauth_test = (ENV['ENTRA_CLIENT_ID'].present? && ENV['ENTRA_CLIENT_SECRET'].present? && ENV['ENTRA_TENANT_ID'].present?) || (ENV['GOOGLE_CLIENT_ID'].present? && ENV['GOOGLE_CLIENT_SECRET'].present?)
     scope ENV.fetch("RAILS_RELATIVE_URL_ROOT", "/") do
-        if oauth_test
+        if ThecoreAuthCommons.oauth_vars?
             # OmniAuth callbacks need these top-level paths:
             match '/auth/:provider/callback', to: redirect('/api/v2/auth/%{provider}/callback'), via: [:get, :post]
             match '/auth/failure', to: redirect('/api/v2/auth/failure'), via: [:get, :post]
@@ -11,7 +10,7 @@ Rails.application.routes.draw do
         namespace :api, constraints: { format: :json } do
             namespace :v2 do
                 # Authentication via Oauth2 only if the environment variable is set
-                if oauth_test
+                if ThecoreAuthCommons.oauth_vars?
                     namespace :auth do
                         # Omniauth routes for OAuth2 authentication
                         match ':provider/callback', to: 'oauth#callback', via: [:get, :post]

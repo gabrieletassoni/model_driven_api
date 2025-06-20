@@ -1,15 +1,8 @@
 module Api::V2::Auth
   class OauthController < ActionController::API
     def callback
-      email = params['email']
+      user = ThecoreAuthCommons.check_user params['email'], params['given_name'], params['family_name'], params['provider']
 
-      user = User.find_or_create_by(email: email) do |u|
-        u.name = params['given_name']
-        u.surname = params['family_name']
-        u.password = u.password_confirmation = ThecoreAuthCommons.generate_secure_password
-        u.auth_source = params['provider'] # 'google' or 'microsoft'
-        u.admin = true
-      end
       unless user
         render json: { error: "User not registered" }, status: :unauthorized
         return
