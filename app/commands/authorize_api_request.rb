@@ -15,18 +15,18 @@ class AuthorizeApiRequest
     
     def api_user
         Rails.logger.debug "AuthorizeApiRequest: api_user -> #{decoded_auth_token}"
-        @api_user ||= User.find(decoded_auth_token[:user_id]) if decoded_auth_token
-        if @api_user
+        @api_user ||= (decoded_auth_token.blank? ? User.find(decoded_auth_token[:user_id]) : nil)
+        unless @api_user.blank
             return @api_user
         else
-            errors.add(:token, "Invalid token")
+            errors.add(:token, "Invalid or Expired token")
             return nil
         end
     end
     
     def decoded_auth_token
         Rails.logger.debug "AuthorizeApiRequest: decoded_auth_token -> http_auth_header -> #{http_auth_header}"
-        @decoded_auth_token ||= JsonWebToken.decode(http_auth_header)
+        @decoded_auth_token ||= (JsonWebToken.decode(http_auth_header) rescue nil)
         @decoded_auth_token
     end
     
