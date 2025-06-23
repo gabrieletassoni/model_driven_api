@@ -16,7 +16,7 @@ class AuthorizeApiRequest
     def api_user
         Rails.logger.debug "AuthorizeApiRequest: api_user -> #{decoded_auth_token}"
         @api_user ||= (decoded_auth_token.blank? ? User.find(decoded_auth_token[:user_id]) : nil)
-        unless @api_user.blank
+        unless @api_user.blank?
             return @api_user
         else
             errors.add(:token, "Invalid or Expired token")
