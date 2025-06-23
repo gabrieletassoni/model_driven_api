@@ -15,7 +15,7 @@ class AuthorizeApiRequest
     
     def api_user
         Rails.logger.debug "AuthorizeApiRequest: api_user -> #{decoded_auth_token}"
-        @api_user ||= (decoded_auth_token.blank? ? User.find(decoded_auth_token[:user_id]) : nil)
+        @api_user ||= (decoded_auth_token.blank? ? nil : User.find(decoded_auth_token[:user_id]))
         unless @api_user.blank?
             return @api_user
         else
