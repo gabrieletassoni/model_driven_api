@@ -6,13 +6,20 @@ module AutoIncludeJson
     Rails.logger.debug "AutoIncludeJson - Building includes from: #{include_option.inspect} from #{caller_locations(1,1).first.label}"
     case include_option
     when Array
-      include_option
+      include_option.map { |item| build_includes(item) }
     when Hash
       include_option.each_with_object({}) do |(assoc, value), hash|
+        # Skip keys that aren't associations
+        next if [:only, :except, :methods].include?(assoc)
+
         if value.is_a?(Hash) && value[:include]
           hash[assoc] = build_includes(value[:include])
+        elsif value.is_a?(Hash)
+          # If value is a hash, assume it might contain nested structure
+          nested = value.reject { |k, _| [:only, :except, :methods].include?(k) }
+          hash[assoc] = build_includes(nested) unless nested.empty?
         else
-          hash[assoc] = {}
+          hash[assoc] = {} # eager load shallow association
         end
       end
     else
