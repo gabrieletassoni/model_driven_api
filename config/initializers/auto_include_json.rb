@@ -3,7 +3,7 @@
 module AutoIncludeJson
   # Recursively builds a hash suitable for ActiveRecord eager loading
   def build_includes(include_option)
-    Rails.logger.debug "Building includes from: #{include_option.inspect} from #{caller_locations(1,1).first.label}"
+    Rails.logger.debug "AutoIncludeJson - Building includes from: #{include_option.inspect} from #{caller_locations(1,1).first.label}"
     case include_option
     when Array
       include_option
@@ -50,7 +50,7 @@ module AutoIncludeRelationJson
   include AutoIncludeJson
 
   def to_json(options = nil)
-    Rails.logger.debug "Relation JSON to_json from #{caller_locations(1,1).first.label}"
+    Rails.logger.debug "AutoIncludeJson - Relation JSON to_json from #{caller_locations(1,1).first.label}"
     return super unless options.is_a?(Hash) && options[:include]
 
     includes_hash = build_includes(options[:include])
@@ -61,7 +61,7 @@ module AutoIncludeRelationJson
   end
 
   def as_json(options = nil)
-    Rails.logger.debug "Relation JSON as_json from #{caller_locations(1,1).first.label}"
+    Rails.logger.debug "AutoIncludeJson - Relation JSON as_json from #{caller_locations(1,1).first.label}"
     return super unless options.is_a?(Hash) && options[:include]
 
     includes_hash = build_includes(options[:include])
@@ -89,7 +89,7 @@ module AutoIncludeInstanceJson
   private
 
   def preload_and_sanitize!(options)
-    Rails.logger.debug "Instance JSON preload_and_sanitize! from #{caller_locations(1,1).first.label}"
+    Rails.logger.debug "AutoIncludeJson - Instance JSON preload_and_sanitize! from #{caller_locations(1,1).first.label}"
     return unless options.is_a?(Hash) && options[:include]
 
     includes_hash = build_includes(options[:include])
