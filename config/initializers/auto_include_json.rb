@@ -92,10 +92,14 @@ module AutoIncludeInstanceJson
     sanitized_includes = sanitize_includes(options[:include])
     options[:include] = sanitized_includes
 
-    ActiveRecord::Associations::Preloader.new.preload(self, includes_hash)
+    ActiveRecord::Associations::Preloader.new(
+      records: [self],
+      associations: includes_hash
+    ).call
   end
+
 end
 
 # Activate extensions
-# ActiveRecord::Relation.prepend(AutoIncludeRelationJson)
-# ActiveRecord::Base.prepend(AutoIncludeInstanceJson)
+ActiveRecord::Relation.prepend(AutoIncludeRelationJson)
+ActiveRecord::Base.prepend(AutoIncludeInstanceJson)
