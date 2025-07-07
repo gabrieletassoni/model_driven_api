@@ -11,7 +11,14 @@ module ApiExceptionManagement
             rescue_from ActiveRecord::RecordInvalid, with: :invalid!
             rescue_from ActiveRecord::RecordNotFound, with: :not_found!
             rescue_from ActiveRecord::RecordNotUnique, with: :invalid!
+            # Rescue Stale Object in Optimistick locking with stale!
+            rescue_from ActiveRecord::StaleObjectError, with: :stale!
             rescue_from EndpointValidationError, with: :api_error
+            rescue_from StandardError, with: :fivehundred!
+        end
+
+        def stale! exception = StandardError.new
+            return api_error status: 409, errors: exception.message
         end
         
         def unauthenticated! exception = AuthenticateUser::AccessDenied.new
