@@ -40,7 +40,7 @@ class Api::V2::ApplicationController < ActionController::API
     response.set_header("Content-Range", "#{@model.table_name} #{range_start}-#{range_end}/#{@records.total_count}")
 
     # puts "ALL RECORDS FOUND: #{@records_all.inspect}"
-    status = @records_count.zero? ? 404 : 200
+    status = @records_count.zero? && params[:always_ok].blank? ? 404 : 200
     # puts "If it's asked for page number, then paginate"
     return render json: @records.as_json(json_attrs), status: status if !page.blank? # (@json_attrs || {})
     #puts "if you ask for count, then return a json object with just the number of objects"
@@ -140,18 +140,17 @@ class Api::V2::ApplicationController < ActionController::API
   # or
   # [GET|PUT|POST|DELETE] :controller/custom_action/:custom_action/:id
   def check_for_custom_action
-
     custom_action, token = if !params[:do].blank?
-      # This also responds to custom actions which have the bearer token in the custom action name. A workaround to remove for some IoT devices
-      # Which don't support token in header or in querystring
-      # This is for backward compatibility and in future it can ben removed
-      params[:do].split("-")
-    elsif request.url.include? "/custom_action/"
-      [params[:action_name], nil]
-    else
-      # Not a custom action call
-      false
-    end
+        # This also responds to custom actions which have the bearer token in the custom action name. A workaround to remove for some IoT devices
+        # Which don't support token in header or in querystring
+        # This is for backward compatibility and in future it can ben removed
+        params[:do].split("-")
+      elsif request.url.include? "/custom_action/"
+        [params[:action_name], nil]
+      else
+        # Not a custom action call
+        false
+      end
     return false unless custom_action
     # Poor man's solution to avoid the possibility to
     # call an unwanted method in the AR Model.
@@ -176,7 +175,7 @@ class Api::V2::ApplicationController < ActionController::API
       # Custom endpoint does not exist or cannot be called
       raise NoMethodError
     end
-    
+
     return true, body.to_json(json_attrs), status
   end
 
