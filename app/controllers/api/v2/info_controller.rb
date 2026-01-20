@@ -1136,6 +1136,174 @@ Content-Type: application/json
 }
 
 ```
+
+## ActiveStorage Integration: React Frontend & Rails Backend
+
+### Overview
+
+This guide explains how to handle file uploads (via Camera or Gallery) and attachment deletions using a **React** frontend and a **Ruby on Rails** backend.
+
+The Rails model uses a virtual attribute strategy for deletion:
+
+* **Upload:** handled via `has_many_attached :assets`
+* **Deletion:** handled via `attr_accessor :remove_assets`
+
+---
+
+### 1. Handling File Objects (No "Paths" needed)
+
+In a web/mobile context (React Web or PWA), you do not need a file system path. When a user takes a photo or selects a file, the browser creates a native **`File`** object (a type of `Blob`).
+
+You must send this binary object to the backend using **`FormData`**.
+
+#### React Component Example
+
+This component handles:
+
+1. **File Input:** Supports both gallery selection and direct camera capture on mobile.
+2. **FormData:** Constructs the payload correctly for Rails.
+3. **API Call:** Sends the data via `fetch`.
+
+```jsx
+import React, { useState } from 'react';
+
+const ProductForm = () => {
+  const [title, setTitle] = useState('');
+  const [selectedFiles, setSelectedFiles] = useState([]);
+
+  // Handle file selection
+  const handleFileChange = (event) => {
+    // event.target.files is a FileList; convert to Array for convenience
+    const filesArray = Array.from(event.target.files);
+    setSelectedFiles(filesArray);
+  };
+
+  // Handle form submission
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    // 1. Create the FormData object
+    const formData = new FormData();
+
+    // 2. Append text fields
+    formData.append('product[title]', title);
+
+    // 3. Append FILES
+    // It is crucial to use 'product[assets][]' with brackets.
+    // This tells Rails to treat it as an array of attachments.
+    selectedFiles.forEach((file) => {
+      formData.append('product[assets][]', file);
+    });
+
+    try {
+      const response = await fetch('http://localhost:3000/api/products', {
+        method: 'POST',
+        // IMPORTANT NOTE:
+        // When using FormData, do NOT set 'Content-Type': 'application/json'
+        // and do NOT manually set 'multipart/form-data'.
+        // The browser will automatically set the header with the correct 'boundary'.
+        body: formData,
+      });
+
+      if (response.ok) {
+        console.log("Upload successful!");
+        // Reset form or redirect...
+      } else {
+        console.error("Upload error");
+      }
+    } catch (error) {
+      console.error("Network error:", error);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} style={{ padding: '20px' }}>
+      <div>
+        <label>Product Title:</label>
+        <input 
+          type="text" 
+          value={title} 
+          onChange={(e) => setTitle(e.target.value)} 
+        />
+      </div>
+
+      <div style={{ marginTop: '20px' }}>
+        <label>Photos (Camera or Gallery):</label>
+        {/* accept="image/*": Accepts only images.
+           capture="environment": On mobile, opens the rear camera directly.
+           Remove 'capture' if you want the user to choose between Gallery and Camera.
+           multiple: Allows selecting multiple photos.
+        */}
+        <input 
+          type="file" 
+          accept="image/*" 
+          multiple
+          onChange={handleFileChange} 
+        />
+      </div>
+
+      <button type="submit" style={{ marginTop: '20px' }}>
+        Save Product
+      </button>
+    </form>
+  );
+};
+
+export default ProductForm;
+
+```
+
+---
+
+### 2. Key Implementation Details
+
+#### A. The `capture` Attribute
+
+* `<input type="file" capture="environment" />`: Opens the **rear camera** directly on iOS/Android.
+* `<input type="file" capture="user" />`: Opens the **front camera** (selfie mode).
+* **No `capture` attribute** (but with `accept="image/*"`): The device will prompt the user: *"Take Photo or Photo Library?"*. This is often the best UX.
+
+#### B. The `forEach` Loop
+
+You cannot pass an array directly into `FormData` (e.g., `formData.append('key', myArray)` will not work).
+Rails expects multiple values for the same key. You must append each file individually:
+
+```javascript
+// Correct
+files.forEach(file => formData.append('product[assets][]', file));
+
+```
+
+#### C. The Content-Type Header
+
+This is a common pitfall. When using `fetch` or `axios` with a `FormData` body, **do not set the Content-Type header manually**.
+The browser must generate it automatically to include the boundary:
+`Content-Type: multipart/form-data; boundary=----WebKitFormBoundary...`
+
+---
+
+## 3. Handling Deletion (PATCH Request)
+
+To remove specific attachments using the `remove_assets` virtual attribute defined in your Rails model, send the **Attachment IDs** (not the file objects).
+
+```javascript
+const handleUpdate = async () => {
+  const formData = new FormData();
+  
+  // 1. Add new files (if any)
+  newFiles.forEach(file => formData.append('product[assets][]', file));
+
+  // 2. Add IDs to remove 
+  // (e.g., idsToRemove is an array like [12, 45])
+  idsToRemove.forEach(id => formData.append('product[remove_assets][]', id));
+
+  await fetch(`http://localhost:3000/api/products/${productId}`, {
+    method: 'PATCH',
+    body: formData
+  });
+};
+
+```
     MARKDOWN
     info
   end
