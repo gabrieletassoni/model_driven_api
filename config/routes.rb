@@ -36,8 +36,8 @@ Rails.application.routes.draw do
 
         namespace :raw do
           # both post and get for raw queries, the query is sent in the body as JSON with a "query" key
-          post "query", to: "raw#query"
-          get "query", to: "raw#query"
+          post :query
+          get :query
         end
 
         post "authenticate" => "authentication#authenticate"
