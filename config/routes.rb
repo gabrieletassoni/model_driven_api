@@ -35,7 +35,8 @@ Rails.application.routes.draw do
         end
 
         namespace :raw do
-          post :query
+          post :sql
+          get :sql
         end
 
         post "authenticate" => "authentication#authenticate"
