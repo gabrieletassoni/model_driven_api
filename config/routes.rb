@@ -29,6 +29,7 @@ Rails.application.routes.draw do
           get :schema
           get :dsl
           get :heartbeat
+          get :ntp
           get :settings
           get :swagger
           get :openapi
