@@ -597,7 +597,12 @@ class Api::V2::InfoController < Api::V2::ApplicationController
             v[:tags] = [d.model_name.name]
           end
 
-          pivot["/#{model}/custom_action/#{action}"] = openapi_definition if openapi_definition
+          # Check if any HTTP method has path parameters with 'in: path', and if so, add {id} to the path
+          path = "/#{model}/custom_action/#{action}"
+          has_path_params = openapi_definition.any? { |_k, v| v.is_a?(Hash) && v[:parameters]&.any? { |p| p[:in] == 'path' } }
+          path += "/{id}" if has_path_params
+
+          pivot[path] = openapi_definition if openapi_definition
         end
         pivot["/#{model}/search"] = {
           # Complex queries are made using ranskac search via a post endpoint
