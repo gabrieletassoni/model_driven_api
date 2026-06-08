@@ -1,0 +1,31 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // \"\"' | { read -r f; ROOT=\"/home/gabrieletassoni/Git/rubyonrails/thecore_project/pjm-poc/vendor/submodules/model_driven_api\"; case \"$f\" in \"$ROOT/AGENTS.md\") cp \"$ROOT/AGENTS.md\" \"$ROOT/CLAUDE.md\";; \"$ROOT/CLAUDE.md\") cp \"$ROOT/CLAUDE.md\" \"$ROOT/AGENTS.md\";; esac; } 2>/dev/null || true",
+            "statusMessage": "Syncing AGENTS.md ↔ CLAUDE.md..."
+          },
+          {
+            "type": "command",
+            "command": "ROOT=\"/home/gabrieletassoni/Git/rubyonrails/thecore_project/pjm-poc/vendor/submodules/model_driven_api\"; SKILLS=\"$ROOT/.agents/skills\"; COMMANDS=\"$ROOT/.claude/commands\"; for d in \"$SKILLS\"/*/; do n=$(basename \"$d\"); [ -f \"$d/SKILL.md\" ] && [ ! -e \"$COMMANDS/$n.md\" ] && ln -sf \"../../.agents/skills/$n/SKILL.md\" \"$COMMANDS/$n.md\"; done; for f in \"$COMMANDS\"/*.md; do [ -L \"$f\" ] || continue; n=$(basename \"$f\" .md); [ -d \"$SKILLS/$n\" ] || rm -f \"$f\"; done 2>/dev/null || true",
+            "statusMessage": "Syncing .agents/skills ↔ .claude/commands..."
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CMD=$(jq -r '.tool_input.command // \"\"'); echo \"$CMD\" | grep -qE '\\.agents|\\.claude.commands' || exit 0; ROOT=\"/home/gabrieletassoni/Git/rubyonrails/thecore_project/pjm-poc/vendor/submodules/model_driven_api\"; SKILLS=\"$ROOT/.agents/skills\"; COMMANDS=\"$ROOT/.claude/commands\"; for d in \"$SKILLS\"/*/; do n=$(basename \"$d\"); [ -f \"$d/SKILL.md\" ] && [ ! -e \"$COMMANDS/$n.md\" ] && ln -sf \"../../.agents/skills/$n/SKILL.md\" \"$COMMANDS/$n.md\"; done; for f in \"$COMMANDS\"/*.md; do [ -L \"$f\" ] || continue; n=$(basename \"$f\" .md); [ -d \"$SKILLS/$n\" ] || rm -f \"$f\"; done 2>/dev/null || true",
+            "statusMessage": "Syncing skills after bash..."
+          }
+        ]
+      }
+    ]
+  }
+}
