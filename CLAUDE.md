@@ -38,8 +38,10 @@ bundle exec standardrb
 |---|---|
 | `application_controller.rb` | Inherits v2 base — overrides CRUD with JSON:API envelopes, Pagy pagination, `filter[field]` filtering, `sort` ordering |
 | `authentication_controller.rb` | Thin subclass of v2 auth controller — provides `POST /api/v3/authenticate` |
+| `auth/oauth_controller.rb` | Thin subclass of v2 OAuth controller — exposes only `exchange_token` via `POST /api/v3/auth/jwt` (registered only when `oauth_vars?`); `callback`/`failure` stay v2-only (OmniAuth middleware is hardcoded to v2 path) |
 | `info_controller.rb` | Inherits v2 info — overrides only `openapi`/`swagger` to call `Api::OpenApi::V3`; all other info actions inherited unchanged |
 | `raw_controller.rb` | `GET/POST /api/v3/raw/sql` — same SELECT-only guard; returns **plain JSON array** (deliberate JSON:API exception) |
+| `users_controller.rb` | Thin subclass of v3 application controller — adds `check_demoting` guard on `update`/`patch`/`destroy`; prevents a user from modifying their own `admin` or `locked` flags (same constraint as v2) |
 
 ### `Api::V2::ApplicationController` — the core
 
@@ -189,12 +191,14 @@ DELETE /api/v2/*path/:id(/multi)        → CRUD destroy / bulk destroy
 
 # V3 (JSON:API-compliant)
 POST   /api/v3/authenticate             → same plain JSON as v2 (Token header)
+POST   /api/v3/auth/jwt                 → token exchange from frontend OAuth token (registered only when oauth_vars?)
 GET    /api/v3/info/version|roles|heartbeat|ntp|translations|schema|dsl|settings|swagger|openapi
 GET    /api/v3/raw/sql                  → SQL escape hatch (plain JSON, not JSON:API)
 POST   /api/v3/raw/sql
 GET    /api/v3/:ctrl/custom_action/:action_name(/:id)
 POST   /api/v3/:ctrl/custom_action/:action_name
 ...    (PUT/PATCH/DELETE custom actions — plain JSON response, not JSON:API)
+GET|POST|PATCH|DELETE /api/v3/users(/:id) → explicit resource; guarded against self-demotion
 GET    /api/v3/*path/:id               → CRUD show
 GET    /api/v3/*path                   → CRUD index (filter/sort/page params)
 POST   /api/v3/*path                   → CRUD create
@@ -211,7 +215,8 @@ DELETE /api/v3/*path/:id               → CRUD destroy (204 No Content)
 - **`Api::OpenApi::V2` and `Api::OpenApi::V3`** — OpenAPI path generation lives in `lib/api/open_api/`, not in the info controllers. The info controllers only build the outer spec envelope (server URL, version, security) and call `.new(models, request).generate`.
 - `update` and `patch` are the same method. `update_multi` and `destroy_multi` expect comma-separated ids in `params[:ids]`.
 - `json_attrs` resolution priority (v2): query param `a`/`json_attrs` > `@json_attrs` instance variable > `@model.json_attrs`.
-- OAuth routes are only registered if `ThecoreAuthCommons.oauth_vars?` returns true (i.e., env vars for Google/Microsoft are set).
+- OAuth routes are only registered if `ThecoreAuthCommons.oauth_vars?` returns true (i.e., env vars for Google/Microsoft are set). In v3, only `POST /api/v3/auth/jwt` (token exchange) is registered — `callback` and `failure` remain v2-only because OmniAuth middleware is hardcoded to the v2 path. Clients using browser-redirect OAuth initiate at the top-level `/auth/:provider` (no version prefix) which is transparent.
+- **v3 explicit controllers** — most v3 resource endpoints are handled by the wildcard route → `Api::V3::ApplicationController`. A model-specific controller (e.g. `Api::V3::UsersController`) is added only when a guard or constraint cannot be expressed through the generic CRUD path. Currently: `UsersController` (self-demotion guard — checks `params.dig("data", "attributes")` for `admin`/`locked` keys, not `params[:user]` as in v2).
 - The `Content-Range` header is always set on v2 index responses; frontends that use react-admin or similar expect it.
 - The `application/vnd.api+json` MIME type parameter parser is registered with key `:json_api` (Symbol) in `ActionDispatch::Request.parameter_parsers` — not with a `Mime::Type` object (the hash uses Symbol keys, not MIME type objects).
 - `ApiExceptionManagement` rescue_from handlers are **production-only**. In test/development, unhandled exceptions propagate as 500s without an error body.

@@ -9,6 +9,14 @@ Rails.application.routes.draw do
     end
     namespace :api, constraints: { format: :json } do
       namespace :v3 do
+        if ThecoreAuthCommons.oauth_vars?
+          namespace :auth do
+            post :jwt, to: "oauth#exchange_token"
+          end
+        end
+
+        resources :users
+
         namespace :info do
           get :version
           get :roles
