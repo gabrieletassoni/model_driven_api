@@ -1,0 +1,3 @@
+# Use JSON:API-native query params with Pagy instead of Ransack for API v3
+
+API v2 exposes Ransack predicates directly (`?q[name_cont]=foo`), which leaks an implementation detail into the API contract and makes clients dependent on Ransack's predicate syntax. API v3 uses the JSON:API conventions (`?filter[field]=value`, `?sort=-field`, `?page[number]=N&page[size]=N`) with Pagy for pagination and simple ActiveRecord scope chaining for filtering. Allowed filter fields are validated against each Resource's `ransackable_attributes` whitelist — reusing the security boundary without exposing the predicate DSL. Ransack remains in use for API v2; only v3 drops it.

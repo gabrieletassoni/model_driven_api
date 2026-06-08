@@ -1,1 +1,2 @@
-Dir[Rails.root.join('spec/support/**/*.rb')].sort.each { |f| require f }
+require "spec_helper"
+Dir[File.expand_path("support/**/*.rb", __dir__)].sort.each { |f| require f }

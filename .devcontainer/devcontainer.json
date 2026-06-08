@@ -1,0 +1,53 @@
+// For format details, see https://aka.ms/vscode-remote/devcontainer.json or this file's README at:
+// https://github.com/microsoft/vscode-dev-containers/tree/v0.134.1/containers/ruby-rails
+{
+	"name": "Model Driven API",
+	"dockerComposeFile": "docker-compose.yml",
+	"service": "app",
+	"workspaceFolder": "/workspaces/project/backend/",
+
+	"customizations": {
+		// Configure properties specific to VS Code.
+		"vscode": {
+			// Add the IDs of extensions you want installed when the container is created.
+			"extensions": [
+				"ms-azuretools.vscode-docker",
+				"esbenp.prettier-vscode",
+				"dbaeumer.vscode-eslint",
+				"github.github-vscode-theme",
+				"henriiik.vscode-sort",
+				"karunamurti.haml",
+				"iciclesoft.workspacesort",
+				"humao.rest-client",
+				"howardzuo.vscode-git-tags",
+				"shakram02.bash-beautify",
+				"rogalmic.bash-debug",
+				"bung87.rails",
+				"redhat.vscode-yaml",
+				"funkyremi.vscode-google-translate",
+				"mohd-akram.vscode-html-format",
+				"lewisardern.semgrep-snippets",
+				"eamodio.gitlens",
+				"aliariff.vscode-erb-beautify",
+				"GrapeCity.gc-excelviewer",
+				"GitHub.copilot",
+				"GitHub.copilot-chat",
+				"jnbt.vscode-rufo",
+				"anweber.vscode-httpyac",
+				"mhutchie.git-graph",
+				"Shopify.ruby-lsp",
+				"tomoki1207.pdf",
+				"Anthropic.claude-code",
+				"gabrieletassoni.thecore"
+			]
+		}
+	},
+	"features": {
+    "ghcr.io/devcontainers/features/node:2": {}
+  },
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	// "forwardPorts": [ 8082 ],
+
+	// Uncomment to connect as a non-root user. See https://aka.ms/vscode-remote/containers/non-root.
+	"remoteUser": "vscode"
+}

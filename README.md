@@ -2,20 +2,27 @@
 
 Part of the [Thecore framework](https://github.com/gabrieletassoni/thecore/tree/release/3).
 
-A Rails engine that auto-generates a versioned REST API at `/api/v2/` by introspecting your ActiveRecord models at runtime. No per-model controllers or serializers needed — the schema drives everything.
+A Rails engine that auto-generates a versioned REST API by introspecting your ActiveRecord models at runtime. No per-model controllers or serializers needed — the schema drives everything.
+
+| Version | Base path | Format | Query style |
+|---|---|---|---|
+| v2 | `/api/v2/` | Plain JSON | Ransack predicates (`q[field_eq]=value`) |
+| v3 | `/api/v3/` | JSON:API | `filter[field]=value`, `sort=field`, `page[number]=N` |
+
+---
 
 ## Features
 
 - Full CRUD for every `ApplicationRecord` subclass with zero boilerplate
-- Ransack-powered filtering and sorting (GET and POST)
-- Pagination via Kaminari
-- JWT authentication with sliding token expiration
+- **v2**: Ransack-powered filtering and sorting (GET and POST search endpoint)
+- **v3**: JSON:API-compliant envelopes; filter/sort/page query params; Pagy pagination
+- JWT authentication with sliding token expiration (shared by v2 and v3)
 - OAuth2 support: Google Workspace and Microsoft Entra ID
 - LDAP / Active Directory authentication (via host app headers)
-- Custom actions on any model — two patterns supported
-- SELECT-only raw SQL endpoint
-- Self-generated OpenAPI 3.0 / Swagger documentation
-- `Content-Range` header for react-admin and similar frontends
+- Custom actions on any model — two patterns supported (v2)
+- SELECT-only raw SQL endpoint (v2 and v3)
+- Self-generated OpenAPI 3.0 / Swagger documentation (v2)
+- `Content-Range` header for react-admin and similar frontends (v2)
 
 ---
 
@@ -73,11 +80,15 @@ Token expiry is controlled by the `SESSION_TIMEOUT_IN_MINUTES` env var (default:
 
 When `ALLOW_MULTISESSIONS=false`, each login invalidates all previous tokens for the user (stored in the `used_tokens` table).
 
-### Bearer token usage
+### Bearer token usage (v2 and v3)
 
 ```http
 GET /api/v2/items
 Authorization: Bearer <jwt>
+
+GET /api/v3/items
+Authorization: Bearer <jwt>
+Accept: application/vnd.api+json
 ```
 
 ---
@@ -150,7 +161,9 @@ VITE_API_URL=http://yourdomain/api/v2/auth/google_oauth2/callback
 
 ---
 
-## CRUD API
+## API v2 — Plain JSON (Ransack)
+
+### CRUD endpoints
 
 All `ApplicationRecord` subclasses get these endpoints automatically:
 
@@ -165,13 +178,11 @@ All `ApplicationRecord` subclasses get these endpoints automatically:
 | DELETE | `/api/v2/:model/:id/multi` | Bulk destroy |
 | POST | `/api/v2/:model/search` | Search (Ransack, same params as GET index) |
 
----
-
-## Search, Filtering & Pagination
+### Search, filtering & pagination
 
 Parameters work identically in query string (GET) and JSON body (POST search).
 
-### Pagination
+#### Pagination
 
 | Param | Type | Effect |
 |---|---|---|
@@ -179,7 +190,7 @@ Parameters work identically in query string (GET) and JSON body (POST search).
 | `per` | Integer | Records per page |
 | `count` | any | Return `{ "count": N }` instead of records |
 
-### Field selection (`a` or `json_attrs`)
+#### Field selection (`a` or `json_attrs`)
 
 ```json
 {
@@ -191,7 +202,7 @@ Parameters work identically in query string (GET) and JSON body (POST search).
 }
 ```
 
-### Ransack filtering (`q`)
+#### Ransack filtering (`q`)
 
 ```
 q[field_predicate]=value
@@ -201,7 +212,7 @@ Common predicates: `_eq`, `_cont`, `_start`, `_end`, `_gt`, `_lt`, `_gteq`, `_lt
 Sorting: `q[s]=field_name asc`.  
 Cross-association: `q[user_email_end]=@example.com`.
 
-### Examples
+#### Examples
 
 ```
 # Paginated index
@@ -234,7 +245,122 @@ The response includes a `Content-Range` header: `model_name start-end/total`.
 
 ---
 
-## Custom Actions
+## API v3 — JSON:API
+
+All responses follow the [JSON:API 1.0](https://jsonapi.org) specification. Send `Accept: application/vnd.api+json` and `Content-Type: application/vnd.api+json` on write requests.
+
+### CRUD endpoints
+
+| Method | Path | Action | Response |
+|---|---|---|---|
+| GET | `/api/v3/:model` | Index | `{ data: […], meta: { total: N } }` |
+| GET | `/api/v3/:model/:id` | Show | `{ data: { id, type, attributes } }` |
+| POST | `/api/v3/:model` | Create | `{ data: { … } }` — 201 Created |
+| PATCH | `/api/v3/:model/:id` | Update | `{ data: { … } }` — 200 OK |
+| DELETE | `/api/v3/:model/:id` | Destroy | 204 No Content |
+
+### Filtering
+
+```
+GET /api/v3/articles?filter[title]=Hello
+GET /api/v3/articles?filter[status]=published&filter[author_id]=42
+```
+
+Field names are validated against the model's `ransackable_attributes` whitelist. Unknown fields are silently ignored.
+
+### Sorting
+
+```
+GET /api/v3/articles?sort=title           # ascending
+GET /api/v3/articles?sort=-created_at     # descending
+GET /api/v3/articles?sort=status,-title   # multi-field
+```
+
+### Pagination
+
+```
+GET /api/v3/articles?page[number]=2&page[size]=10
+```
+
+Response includes `meta.total` with the full count:
+
+```json
+{
+  "data": [ … ],
+  "meta": { "total": 47 }
+}
+```
+
+### Sparse fieldsets
+
+Return only a subset of attributes per type:
+
+```
+GET /api/v3/articles?fields[articles]=title,published_at
+```
+
+Multiple types can be narrowed in a single request when sideloading:
+
+```
+GET /api/v3/roles/1?include=users&fields[roles]=name&fields[users]=email
+```
+
+### Sideloading (relationships)
+
+Default sideloads are defined in the model's `json_attrs[:include]`. The client can override:
+
+```
+# Default sideloads from json_attrs[:include]
+GET /api/v3/roles/1
+
+# Explicit override — only sideload users
+GET /api/v3/roles/1?include=users
+
+# Suppress all sideloading
+GET /api/v3/roles/1?include=
+```
+
+Sideloaded resources appear in a top-level `included` array per the JSON:API spec.
+
+### Create / update request body
+
+```http
+POST /api/v3/articles
+Content-Type: application/vnd.api+json
+Authorization: Bearer <jwt>
+
+{
+  "data": {
+    "type": "articles",
+    "attributes": {
+      "title": "My Article",
+      "body": "Content here"
+    }
+  }
+}
+```
+
+### JSON:API response example
+
+```json
+{
+  "data": {
+    "id": "1",
+    "type": "articles",
+    "attributes": {
+      "title": "My Article",
+      "body": "Content here",
+      "published_at": "2026-06-08T10:00:00.000Z"
+    }
+  }
+}
+```
+
+Attributes are driven by the model's `json_attrs` (minus `:id`, which is always the resource identifier). `methods:` entries become virtual attributes; `include:` entries produce relationship linkage and default sideloads.
+
+---
+
+## Custom Actions (v2 only)
 
 ### Pattern 1 — class method on the model
 
@@ -292,15 +418,15 @@ DELETE /api/v2/my_models/custom_action/report/:id
 
 ## JSON Serialisation DSL (`json_attrs`)
 
-Each model can declare `self.json_attrs` to control the API response shape. This mirrors the Rails `as_json` API.
+Each model can declare `self.json_attrs` to control the API response shape. In v2 this mirrors the Rails `as_json` API; in v3 the `[:only]` list drives the generated JSON:API serializer.
 
 ```ruby
 class MyModel < ApplicationRecord
   cattr_accessor :json_attrs
   self.json_attrs = {
-    only: [:id, :name, :status],
-    except: [:internal_notes],
-    methods: [:computed_value],
+    only: [:id, :name, :status],      # attribute whitelist
+    except: [:internal_notes],         # attribute blacklist (used when only: is absent)
+    methods: [:computed_value],        # virtual attributes (callable on instance)
     include: {
       category: { only: [:id, :name] },
       tags:     { only: [:id, :label] }
@@ -309,19 +435,26 @@ class MyModel < ApplicationRecord
 end
 ```
 
+**v2 behaviour**: `only`/`except`/`methods`/`include` are passed through Rails `as_json` on every response. Clients may override per-request via the `a` or `json_attrs` query/body parameter.
+
+**v3 behaviour**:
+- `only:` / `except:` — drive the generated JSON:API serializer's attribute list.
+- `methods:` — each entry becomes a virtual attribute using `object.send(method)` (private methods are supported, consistent with Rails `as_json`).
+- `include:` — each entry declares a relationship on the serializer and becomes a **default sideload**. The client can suppress or replace defaults with `?include=` (empty to suppress, comma-separated list to override).
+
 When composing `json_attrs` across multiple concerns, use `ModelDrivenApi.smart_merge` to deep-merge without losing fields set by other concerns:
 
 ```ruby
 self.json_attrs = ModelDrivenApi.smart_merge((json_attrs || {}), { only: [:id, :name] })
 ```
 
-Clients can override the shape per-request via the `a` or `json_attrs` query/body parameter.
-
 ---
 
 ## Raw SQL endpoint
 
-Executes read-only SELECT queries. The query **must** return a `result` key (use `json_agg`).
+Executes read-only SELECT queries. Authentication required. Only `SELECT` (and `WITH … SELECT`) statements are allowed; DDL and DML are rejected with HTTP 400.
+
+### v2 — requires `result` key
 
 ```http
 POST /api/v2/raw/sql
@@ -333,24 +466,26 @@ Content-Type: application/json
 }
 ```
 
-Only `SELECT` (and `WITH … SELECT`) statements are allowed. DDL and DML are rejected with HTTP 400.
+The query **must** return a `result` column (use `json_agg` or `jsonb_agg`).
 
-Complex example with CTE:
+### v3 — plain JSON array
 
-```sql
-WITH data AS (
-  SELECT u.id, u.email, json_agg(r.name) AS roles
-  FROM users u
-  JOIN users_roles ur ON ur.user_id = u.id
-  JOIN roles r ON r.id = ur.role_id
-  GROUP BY u.id
-)
-SELECT jsonb_agg(data) AS result FROM data;
+```http
+GET /api/v3/raw/sql?query=SELECT+id,title+FROM+articles+LIMIT+10
+Authorization: Bearer <jwt>
+
+POST /api/v3/raw/sql
+Authorization: Bearer <jwt>
+Content-Type: application/json
+
+{ "query": "SELECT id, title FROM articles ORDER BY created_at DESC LIMIT 10" }
 ```
+
+Returns rows directly as a JSON array — no `result` key, no JSON:API envelope. This is a deliberate exception to JSON:API compliance for the SQL escape hatch.
 
 ---
 
-## Info endpoints
+## Info endpoints (v2)
 
 All under `/api/v2/info/` (authenticated except where noted):
 
@@ -368,7 +503,7 @@ All under `/api/v2/info/` (authenticated except where noted):
 
 ---
 
-## ActiveStorage file uploads
+## ActiveStorage file uploads (v2)
 
 For models with `has_many_attached :assets`, use `multipart/form-data` — do not use JSON:
 

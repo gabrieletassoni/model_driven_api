@@ -32,4 +32,15 @@ gem 'rack-cors', "~> 2.0"
 # Intelligent Merging (recursive and recognizes types)
 # https://github.com/danielsdeleo/deep_merge
 gem "deep_merge", '~> 1.2'
-gem 'sqlite3'
+gem 'pg', '~> 1.1'
+
+# JSON:API serialization (v3)
+gem 'jsonapi-serializer', '~> 2.2'
+
+# Pagination (v3)
+gem 'pagy', '~> 9.0'
+
+group :test do
+  gem 'rspec-rails', '~> 7.0'
+  gem 'factory_bot_rails', '~> 6.4'
+end

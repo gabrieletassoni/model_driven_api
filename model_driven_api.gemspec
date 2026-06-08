@@ -42,5 +42,13 @@ Gem::Specification.new do |spec|
   # https://github.com/danielsdeleo/deep_merge
   spec.add_dependency "deep_merge", '~> 1.2'
 
-  spec.add_development_dependency 'sqlite3'
+  # JSON:API serialization (v3)
+  spec.add_dependency 'jsonapi-serializer', '~> 2.2'
+
+  # Pagination (v3)
+  spec.add_dependency 'pagy', '~> 9.0'
+
+  spec.add_development_dependency 'pg', '~> 1.1'
+  spec.add_development_dependency 'rspec-rails', '~> 7.0'
+  spec.add_development_dependency 'factory_bot_rails', '~> 6.4'
 end

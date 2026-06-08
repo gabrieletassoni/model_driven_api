@@ -8,6 +8,42 @@ Rails.application.routes.draw do
       match "/auth/failure", to: redirect("/api/v2/auth/failure"), via: [:get, :post]
     end
     namespace :api, constraints: { format: :json } do
+      namespace :v3 do
+        namespace :info do
+          get :version
+          get :roles
+          get :translations
+          get :schema
+          get :dsl
+          get :heartbeat
+          get :ntp
+          get :settings
+          get :swagger
+          get :openapi
+        end
+
+        post "authenticate" => "authentication#authenticate"
+
+        get  ":ctrl/custom_action/:action_name",     to: "application#index"
+        get  ":ctrl/custom_action/:action_name/:id", to: "application#show"
+        post ":ctrl/custom_action/:action_name",     to: "application#create"
+        put  ":ctrl/custom_action/:action_name/:id", to: "application#update"
+        patch ":ctrl/custom_action/:action_name/:id", to: "application#update"
+        delete ":ctrl/custom_action/:action_name/:id", to: "application#destroy"
+
+        namespace :raw do
+          post :sql
+          get :sql
+        end
+
+        get  "*path/:id", to: "application#show"
+        get  "*path",     to: "application#index"
+        post "*path",     to: "application#create"
+        put  "*path/:id", to: "application#update"
+        patch "*path/:id", to: "application#update"
+        delete "*path/:id", to: "application#destroy"
+      end
+
       namespace :v2 do
         # Authentication via Oauth2 only if the environment variable is set
         if ThecoreAuthCommons.oauth_vars?

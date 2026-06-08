@@ -1,6 +1,6 @@
 # CLAUDE.md — model_driven_api
 
-This is a Rails engine gem (`model_driven_api`) that auto-generates a versioned REST API at `/api/v2/` by introspecting ActiveRecord models at runtime. It lives as a git submodule inside a parent Thecore application.
+This is a Rails engine gem (`model_driven_api`) that auto-generates a versioned REST API at `/api/v2/` (plain JSON, Ransack-powered) and `/api/v3/` (JSON:API-compliant) by introspecting ActiveRecord models at runtime. It lives as a git submodule inside a parent Thecore application.
 
 ## Commands
 
@@ -20,7 +20,7 @@ bundle exec standardrb
 
 ### Entry point
 
-`lib/model_driven_api.rb` — loads all dependencies and requires the engine. The engine (`lib/model_driven_api/engine.rb`) appends the gem's migrations to the host app.
+`lib/model_driven_api.rb` — loads all dependencies and requires the engine. The engine (`lib/model_driven_api/engine.rb`) appends the gem's migrations to the host app and registers the `application/vnd.api+json` MIME type with a parameter parser (symbol key `:json_api` in `ActionDispatch::Request.parameter_parsers`).
 
 ### Controllers (`app/controllers/api/v2/`)
 
@@ -32,7 +32,14 @@ bundle exec standardrb
 | `info_controller.rb` | `/api/v2/info/*` — version, roles, schema, dsl, swagger, openapi, ntp, heartbeat, translations, settings |
 | `raw_controller.rb` | `POST /api/v2/raw/sql` — safe SELECT-only SQL executor |
 
-### `ApplicationController` — the core
+### Controllers (`app/controllers/api/v3/`)
+
+| File | Role |
+|---|---|
+| `application_controller.rb` | Inherits v2 base — overrides CRUD with JSON:API envelopes, Pagy pagination, `filter[field]` filtering, `sort` ordering |
+| `raw_controller.rb` | `GET/POST /api/v3/raw/sql` — same SELECT-only guard; returns **plain JSON array** (deliberate JSON:API exception) |
+
+### `Api::V2::ApplicationController` — the core
 
 Every API request goes through `Api::V2::ApplicationController`:
 
@@ -41,13 +48,47 @@ Every API request goes through `Api::V2::ApplicationController`:
 3. `find_record` — called only for show/update/destroy; finds by `params[:id]`.
 4. CRUD actions (`index`, `show`, `create`, `update`/`patch`, `destroy`, `update_multi`, `destroy_multi`) — all delegate authorization to CanCan (`authorize! :action, @model`).
 
-### Ransack-powered search (`index`)
+### `Api::V3::ApplicationController` — JSON:API layer
+
+Inherits from v2; reuses `authenticate_request`, `extract_model`, `find_record`, and all CanCan authorization. Overrides all CRUD actions:
+
+- **`index`** — `filter[field]=value` params (validated against `ransackable_attributes`), `sort=field` / `sort=-field` (comma-separated), Pagy pagination via `page[number]` + `page[size]`. Response: `{ data: […], meta: { total: N } }`.
+- **`show`** — `{ data: { id:, type:, attributes: {} } }`.
+- **`create`** — reads attributes from `params[:data][:attributes]`. Response: 201 + resource object.
+- **`update`/`patch`** — reads attributes from `params[:data][:attributes]`. Response: 200 + resource object.
+- **`destroy`** — 204 No Content.
+
+**Sideloading (hybrid)** — default sideloads come from `json_attrs[:include]` keys. The client overrides with `?include=assoc1,assoc2`; passing `?include=` (empty string) suppresses all sideloads. Implemented in `requested_includes` / `default_includes`.
+
+**Sparse fieldsets** — `?fields[type]=field1,field2` narrows the attributes returned per type. Passed to the serializer as `fields: { type: [:field1, :field2] }`. Implemented in `sparse_fields` / `serializer_opts`.
+
+### `Api::V3::SerializerFactory` (`lib/api/v3/serializer_factory.rb`)
+
+Lazily generates a named `JSONAPI::Serializer` subclass from each model's `json_attrs`. Classes are cached in the `Api::V3` namespace as `<ModelName>Serializer` after first generation.
+
+Attribute resolution order:
+1. `json_attrs[:only]` — used directly if present.
+2. Fallback — `column_names - json_attrs[:except]` when `only:` is absent (handles concerns like `ModelDrivenApiRole` that use `except:` rather than `only:`).
+
+`json_attrs[:methods]` — each symbol becomes a block-form `attribute` using `object.send(method_name)`. `send` (not `public_send`) is required — `thecore_backend_commons`'s `BaseApplicationRecordConcern` injects `methods: [:assets_paths, :rich_content_html]` into every model at `after_initialize` time, and both are declared `private`. Rails `as_json` uses `send` for the same reason.
+
+`json_attrs[:include]` — each entry is a bare symbol (`:assoc`) or a hash (`assoc: { only: [:id] }`). A nested serializer is generated as `<AssocModel>For<ParentModel>Serializer`, registered with the correct macro (`has_many`/`has_one`/`belongs_to`) from `reflect_on_all_associations`. Nested serializers are always flat — `include:` is not processed recursively — to prevent infinite loops on circular associations (e.g. `Role ↔ User`).
+
+```ruby
+serializer = Api::V3::SerializerFactory.serializer_for(Role)
+# → Api::V3::RoleSerializer (generated on first call, cached afterwards)
+# Also generates Api::V3::UserForRoleSerializer when Role.json_attrs[:include] contains users:
+```
+
+The `:id` field is excluded from `attributes` (the serializer handles it as the resource identifier). When all non-id attributes are stripped, the jsonapi-serializer gem omits the `:attributes` key entirely from the hash (per JSON:API spec). Use `.to_h` when asserting emptiness: `expect(attrs.to_h).to be_empty`.
+
+### Ransack-powered search (`index`) — v2 only
 
 `GET /api/v2/:model?q[field_predicate]=value` or `POST /api/v2/:model/search`.  
 Pagination via `page` + `per`. Count-only via `count=true`.  
 Field selection via `a` or `json_attrs` (mirrors Rails `as_json` DSL: `only`, `except`, `methods`, `include`).
 
-### Custom actions
+### Custom actions — v2 only
 
 Two patterns are supported, checked in `check_for_custom_action`:
 
@@ -82,7 +123,7 @@ Place endpoint files in `app/models/endpoints/model_name.rb` in the host app.
 
 ### JSON serialisation DSL (`json_attrs`)
 
-Each model exposes `self.json_attrs` as a class-level hash with the standard Rails `as_json` keys: `:only`, `:except`, `:methods`, `:include`. The engine reads this in every CRUD response. Clients can override it per-request via the `a` or `json_attrs` query parameter.
+Each model exposes `self.json_attrs` as a class-level hash with the standard Rails `as_json` keys: `:only`, `:except`, `:methods`, `:include`. The engine reads this in every v2 CRUD response. The v3 `SerializerFactory` reads `json_attrs[:only]` first, then falls back to `column_names - [:except]` if `only:` is not set. Clients can override the shape per-request via the `a` or `json_attrs` query parameter (v2 only).
 
 Use `ModelDrivenApi.smart_merge(existing, additions)` when composing `json_attrs` across concerns — it does a deep merge that extends arrays rather than replacing them.
 
@@ -94,7 +135,10 @@ Use `ModelDrivenApi.smart_merge(existing, additions)` when composing `json_attrs
 
 ### Safe SQL executor (`lib/safe_sql_executor.rb`)
 
-`SafeSqlExecutor.execute_select(query)` — validates that the query is a `SELECT` (or `WITH ... SELECT`), then executes. Only SELECT is allowed; DDL/DML raise `ArgumentError`. The query must return a `result` key (typically via `json_agg`).
+`SafeSqlExecutor.execute_select(query)` — validates that the query is a `SELECT` (or `WITH ... SELECT`), then executes. Only SELECT is allowed; DDL/DML raise `ArgumentError`.
+
+- **v2**: The query must return a `result` key (typically via `json_agg`). Response wrapped in `{ result: … }`.
+- **v3**: Returns raw rows as a plain JSON array — no `result` key required. A deliberate exception to JSON:API compliance (see ADR 0004).
 
 ### OpenAPI / Swagger self-generation
 
@@ -107,8 +151,10 @@ This endpoint does not require authentication.
 ## Routes summary
 
 ```
+# V2 (plain JSON, Ransack-powered)
 POST   /api/v2/authenticate
 GET    /api/v2/info/version|roles|heartbeat|ntp|translations|schema|dsl|settings|swagger|openapi
+GET    /api/v2/raw/sql
 POST   /api/v2/raw/sql
 GET    /api/v2/auth/:provider           → triggers OmniAuth
 POST   /api/v2/auth/:provider/callback
@@ -121,6 +167,15 @@ GET    /api/v2/*path(/:id)              → CRUD index / show
 POST   /api/v2/*path                    → CRUD create
 PUT|PATCH /api/v2/*path/:id(/multi)     → CRUD update / bulk update
 DELETE /api/v2/*path/:id(/multi)        → CRUD destroy / bulk destroy
+
+# V3 (JSON:API-compliant)
+GET    /api/v3/raw/sql                  → SQL escape hatch (plain JSON, not JSON:API)
+POST   /api/v3/raw/sql
+GET    /api/v3/*path/:id               → CRUD show
+GET    /api/v3/*path                   → CRUD index (filter/sort/page params)
+POST   /api/v3/*path                   → CRUD create
+PUT|PATCH /api/v3/*path/:id            → CRUD update
+DELETE /api/v3/*path/:id               → CRUD destroy
 ```
 
 ## Key invariants and gotchas
@@ -128,6 +183,32 @@ DELETE /api/v2/*path/:id(/multi)        → CRUD destroy / bulk destroy
 - `params` is overridden to `request.parameters` — strong parameters are bypassed intentionally. Do not use `params.require(...).permit(...)` patterns.
 - `extract_model` returns 404 for non-ActiveRecord models (except `TestApi`). If you need a model-less endpoint, use `skip_before_action :extract_model` in a subclass or use a root action in the host app.
 - `update` and `patch` are the same method. `update_multi` and `destroy_multi` expect comma-separated ids in `params[:ids]`.
-- `json_attrs` resolution priority: query param `a`/`json_attrs` > `@json_attrs` instance variable > `@model.json_attrs`.
+- `json_attrs` resolution priority (v2): query param `a`/`json_attrs` > `@json_attrs` instance variable > `@model.json_attrs`.
 - OAuth routes are only registered if `ThecoreAuthCommons.oauth_vars?` returns true (i.e., env vars for Google/Microsoft are set).
-- The `Content-Range` header is always set on index responses; frontends that use react-admin or similar expect it.
+- The `Content-Range` header is always set on v2 index responses; frontends that use react-admin or similar expect it.
+- The `application/vnd.api+json` MIME type parameter parser is registered with key `:json_api` (Symbol) in `ActionDispatch::Request.parameter_parsers` — not with a `Mime::Type` object (the hash uses Symbol keys, not MIME type objects).
+- `ApiExceptionManagement` rescue_from handlers are **production-only**. In test/development, unhandled exceptions propagate as 500s without an error body.
+- **`SerializerFactory` caches by class name** — once `Api::V3::RoleSerializer` (or any `<Model>Serializer`) is set in the `Api::V3` namespace it is never regenerated. Changes to `json_attrs` at runtime are not reflected until the process restarts.
+- **`SerializerFactory` uses `send`, not `public_send`, for `methods:`** — `thecore_backend_commons` injects private methods (`assets_paths`, `rich_content_html`) into every model. Using `public_send` raises `NoMethodError: private method 'assets_paths' called`. This mirrors Rails `as_json` behaviour.
+- **`append_migrations` uses `==`, not `.match`** — the guard in `engine.rb` compares `app.root.to_s == root.to_s`. A substring `.match` would cause the dummy app (a subdirectory of the engine) to falsely match the engine root and skip appending the gem's own migrations.
+
+## Test infrastructure
+
+The dummy app (`test/dummy/`) isolates the engine from host-app concerns. Its schema is derived from the dependency chain — **never add host-app models or tables to the dummy app**.
+
+- `test/dummy/db/schema.rb` — generated from the dependency chain migrations: `thecore_auth_commons` (users, roles, role_users, permissions chain, ldap_servers), `thecore_settings`, this gem's `used_tokens`, and `active_storage` tables (required because `rails/all` registers ActiveStorage `before_destroy` callbacks on `ActiveRecord::Base`). Regenerate with: `RAILS_ENV=test bundle exec rake db:migrate db:schema:dump` from the engine root.
+- `spec/spec_helper.rb` — loads schema via `load`, sets `SECRET_KEY_BASE`, requires `bcrypt`, patches `Ability#initialize` in `before(:suite)` to grant `can :manage, :all`. Permissions tables exist but are empty in tests; without this patch the user would have no abilities.
+- `test/dummy/config/application.rb` — stubs `action_mailbox`, `action_mailer`, `action_cable`, `assets` on `Rails::Application::Configuration`; adds dummy autoload paths; stubs `has_rich_text` (see below); pre-requires stub models before engine hooks fire.
+- `spec/factories/users.rb` — uses `BCrypt::Password.create(...)` directly (no Devise).
+- `spec/factories/roles.rb` — Role factory; `spec/requests/api/v3/roles_spec.rb` is the v3 integration test (26 tests against `Role`, the canonical model from `thecore_auth_commons`).
+
+**`has_rich_text` stub** — the dummy app stubs ActionText's `has_rich_text` macro via an `ActiveSupport.on_load(:active_record)` block. The stub must actually define the named instance method (returning `nil`) so that `rich_content_html` (injected by `thecore_backend_commons`) can call `rich_content` without raising `NoMethodError`. A no-op `def has_rich_text(*); end` is insufficient.
+
+```ruby
+# test/dummy/config/application.rb — correct stub
+extend(Module.new do
+  def has_rich_text(*names)
+    names.each { |name| define_method(name) { nil } }
+  end
+end) unless respond_to?(:has_rich_text)
+```
