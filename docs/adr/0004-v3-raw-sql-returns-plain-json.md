@@ -10,4 +10,4 @@ API v3 is JSON:API-compliant across all Resource endpoints. The SQL Escape Hatch
 
 ## Consequences
 
-Clients consuming `/api/v3/raw/sql` must not expect a JSON:API envelope. This is the only v3 endpoint that does not return one.
+Clients consuming `/api/v3/raw/sql` must not expect a JSON:API envelope. Other v3 endpoints that also return plain JSON (not JSON:API envelopes): info endpoints (`/api/v3/info/*`) and Custom Action responses (`/api/v3/:model/custom_action/:action` and `?do=`). The JSON:API compliance guarantee applies only to the CRUD Resource endpoints.

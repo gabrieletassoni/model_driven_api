@@ -21,6 +21,8 @@ app/
     raw_controller.rb             # SELECT-only SQL; returns { result: … }
   controllers/api/v3/
     application_controller.rb     # JSON:API CRUD; inherits v2 auth + model extraction
+    authentication_controller.rb  # thin subclass — POST /api/v3/authenticate
+    info_controller.rb            # inherits v2 info; overrides openapi/swagger for v3 spec
     raw_controller.rb             # SELECT-only SQL; returns plain JSON array
 config/
   routes.rb                       # /api/v2/* and /api/v3/* routes
@@ -36,8 +38,16 @@ lib/
     engine.rb                     # Rails::Engine; appends migrations;
                                   # registers :json_api MIME type + parser
     version.rb                    # VERSION constant
-  api/v3/
-    serializer_factory.rb         # lazy JSONAPI::Serializer generation from json_attrs
+  api/
+    resource_attribute_set.rb     # Struct: resolves json_attrs[:only/:except/:methods/:include] once
+    model_resolver.rb             # resolves @model from params; raises ModelResolver::NotFound
+    custom_action_dispatcher.rb   # dispatches ?do= and /custom_action/ requests (IoT workaround removed)
+    open_api/
+      base.rb                     # shared type helpers: compute_type, create_properties_from_model
+      v2.rb                       # generates v2 OpenAPI paths (extract from InfoController)
+      v3.rb                       # generates v3 OpenAPI paths (JSON:API envelopes, filter/sort/page)
+    v3/
+      serializer_factory.rb       # lazy JSONAPI::Serializer generation; delegates attrs to ResourceAttributeSet
   json_web_token.rb               # JWT encode/decode
   safe_sql_executor.rb            # SELECT-only SQL guard
   non_crud_endpoints.rb           # base class for Endpoints::* modules
@@ -62,11 +72,11 @@ docs/
 ```
 Request
   └─ authenticate_request       resolves @current_user from JWT or custom headers
-  └─ extract_model              resolves @model from URL segment, sets @body
+  └─ extract_model              delegates to Api::ModelResolver.resolve → @model (or 404)
   └─ find_record (show/update/destroy only)  @record = @model.find(id)
   └─ action (index/show/create/update/destroy …)
        └─ authorize! via CanCan
-       └─ check_for_custom_action  (if ?do= or /custom_action/ in URL)
+       └─ check_for_custom_action  delegates to Api::CustomActionDispatcher.call
        └─ Ransack query (index)
        └─ render json: …, status: …
   └─ response.set_header("Token", fresh_jwt)   sliding expiration
@@ -81,6 +91,7 @@ Request
   └─ find_record (show/update/destroy only)  (inherited from v2)
   └─ action (index/show/create/update/destroy)
        └─ authorize! via CanCan
+       └─ check_for_custom_action  delegates to Api::CustomActionDispatcher.call (plain JSON response)
        └─ apply_filters (filter[field]=value, validated against ransackable_attributes)
        └─ apply_sorting (sort=field / sort=-field, comma-separated)
        └─ pagy(scope, page: N, limit: N)      Pagy 9 pagination
@@ -99,8 +110,8 @@ Request
 | Add a CRUD endpoint for a new model | Include `ModelDrivenApiApplicationRecord` in `ApplicationRecord` — the engine picks it up automatically for both v2 and v3 |
 | Override JSON shape for a model (v2) | Define `cattr_accessor :json_attrs; self.json_attrs = { only: […] }` on the model, or use `ModelDrivenApi.smart_merge` with a concern |
 | Override JSON:API attributes (v3) | Same `json_attrs[:only]` — `SerializerFactory` reads it at first request and caches the serializer class |
-| Add a custom action (simple) | Class method `def self.custom_action_foo(params)` on the model — v2 only |
-| Add a custom action (with OpenAPI docs) | Subclass `NonCrudEndpoints` as `Endpoints::MyModel` — v2 only |
+| Add a custom action (simple) | Class method `def self.custom_action_foo(params)` on the model — works in v2 and v3 (plain JSON response in both) |
+| Add a custom action (with OpenAPI docs) | Subclass `NonCrudEndpoints` as `Endpoints::MyModel` — works in v2 and v3 |
 | Add a new auth header type | Implement a `simple_command` class named `Authorize<HeaderName>`, register its name in `Settings.ns(:security).allowed_authorization_headers` |
 | Restrict/expand CORS | `config/initializers/cors_api_thecore.rb` |
 
@@ -112,12 +123,17 @@ Request
 - **Token blacklisting is opt-in** — only active when `ALLOW_MULTISESSIONS=false`. Code that touches `UsedToken` must not break when `ALLOW_MULTISESSIONS` is unset or `"true"`.
 - **`SafeSqlExecutor` is SELECT-only** — it validates and raises `ArgumentError` on anything else. Never bypass it for the raw SQL endpoint.
 - **`json_attrs` deep-merge, not replace** — always use `ModelDrivenApi.smart_merge(existing, additions)` when composing `json_attrs` across concerns; plain `merge` or `=` will silently drop fields from other concerns.
+- **`Api::ResourceAttributeSet.for(model)` is the single source of truth** for resolving `only:`/`except:`/`methods:`/`include:`. Do not inline this resolution in new code — use the struct.
+- **`Api::ModelResolver.resolve` returns `nil` for model-less controllers** — it raises `NotFound` only when a class is resolved but is not an AR model. Info/utility controllers (`heartbeat`, `ntp`, `translations`) call `extract_model` and get `@model = nil`; they do not 404.
+- **`Api::CustomActionDispatcher` no longer extracts tokens from action names** — the IoT workaround (`params[:do].split("-")`) has been removed. Bearer tokens must be in the `Authorization` header. `params[:do]` is always the literal action name.
+- **`Api::OpenApi::V2/V3` own all OpenAPI path logic** — do not add path-generation code back into the info controllers; extend the generator classes instead.
 - **`SerializerFactory` caches by class name** — once `Api::V3::RoleSerializer` (or any `<Model>Serializer`) is set in the `Api::V3` namespace it is never regenerated. Changes to `json_attrs` at runtime are not reflected until the process restarts.
 - **`SerializerFactory` handles both `only:` and `except:`** — when `json_attrs[:only]` is absent, attributes are derived from `column_names - json_attrs[:except]`. Do not assume `only:` is always set; `ModelDrivenApiRole` and `ModelDrivenApiUser` use `except:`.
 - **`append_migrations` uses `==`, not `.match`** — `engine.rb` guards with `app.root.to_s == root.to_s`. A substring `.match` caused the dummy app (a subdirectory of the engine) to skip appending the gem's own migrations.
 - **`ApiExceptionManagement` is production-only** — `rescue_from` handlers only register when `Rails.env.production?`. In test and development, exceptions propagate as 500s without an error body.
 - **MIME type parser key is a Symbol** — `ActionDispatch::Request.parameter_parsers[:json_api]` (not `Mime[:json_api]`). The hash uses Symbol keys, not Mime::Type objects.
 - **v3 raw SQL returns plain JSON** — no `result` key required, no JSON:API envelope. This is a deliberate exception to JSON:API compliance (ADR 0004).
+- **Custom action responses in v3 are plain JSON** — the dispatcher returns `[true, body, status]`; the controller serializes with `body.to_json(json_attrs)`. No JSON:API envelope is applied.
 
 ## Patterns to recognise
 

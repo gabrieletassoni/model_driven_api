@@ -19,9 +19,11 @@ A Rails engine that auto-generates a versioned REST API by introspecting your Ac
 - JWT authentication with sliding token expiration (shared by v2 and v3)
 - OAuth2 support: Google Workspace and Microsoft Entra ID
 - LDAP / Active Directory authentication (via host app headers)
-- Custom actions on any model — two patterns supported (v2)
+- Custom actions on any model — two patterns supported (v2 and v3)
 - SELECT-only raw SQL endpoint (v2 and v3)
-- Self-generated OpenAPI 3.0 / Swagger documentation (v2)
+- Self-generated OpenAPI 3.0 / Swagger documentation (v2 and v3)
+- JSON:API sideloading with hybrid defaults (`json_attrs[:include]` + `?include=` override)
+- JSON:API sparse fieldsets (`?fields[type]=f1,f2`)
 - `Content-Range` header for react-admin and similar frontends (v2)
 
 ---
@@ -360,20 +362,18 @@ Attributes are driven by the model's `json_attrs` (minus `:id`, which is always 
 
 ---
 
-## Custom Actions (v2 only)
+## Custom Actions (v2 and v3)
+
+Custom actions are dispatched by `Api::CustomActionDispatcher` in both v2 and v3. Responses are plain JSON (not JSON:API envelopes) in both versions. The bearer token must be sent via the `Authorization` header — embedding tokens in the action name is no longer supported.
 
 ### Pattern 1 — class method on the model
 
 ```ruby
 class MyModel < ApplicationRecord
   # Called via: GET /api/v2/my_models?do=report
+  #             GET /api/v3/my_models?do=report
   def self.custom_action_report(params)
     [{ total: count, params: params }, 200]
-  end
-
-  # With record ID: GET /api/v2/my_models/:id?do=summary
-  def self.custom_action_summary(params)
-    [{ summary: "…" }, 200]
   end
 end
 ```
@@ -403,15 +403,14 @@ class Endpoints::MyModel < NonCrudEndpoints
 end
 ```
 
-Routes for pattern 2:
+Routes for pattern 2 (same shape in v2 and v3):
 
 ```
 GET    /api/v2/my_models/custom_action/report
+GET    /api/v3/my_models/custom_action/report
 GET    /api/v2/my_models/custom_action/report/:id
-POST   /api/v2/my_models/custom_action/report
-PUT    /api/v2/my_models/custom_action/report/:id
-PATCH  /api/v2/my_models/custom_action/report/:id
-DELETE /api/v2/my_models/custom_action/report/:id
+GET    /api/v3/my_models/custom_action/report/:id
+POST / PUT / PATCH / DELETE also available in both versions
 ```
 
 ---
@@ -485,9 +484,9 @@ Returns rows directly as a JSON array — no `result` key, no JSON:API envelope.
 
 ---
 
-## Info endpoints (v2)
+## Info endpoints (v2 and v3)
 
-All under `/api/v2/info/` (authenticated except where noted):
+All info endpoints are available under both `/api/v2/info/` and `/api/v3/info/`. v3 clients can use a single base URL for auth, CRUD, and info.
 
 | Endpoint | Auth | Description |
 |---|---|---|
@@ -500,6 +499,8 @@ All under `/api/v2/info/` (authenticated except where noted):
 | `GET /info/translations` | Yes | Full i18n tree (`?locale=en`) |
 | `GET /info/settings` | Yes | All `ThecoreSettings::Setting` values |
 | `GET /info/swagger` | No | OpenAPI 3.0 spec (alias: `/info/openapi`) |
+
+The v2 and v3 swagger specs are different — v2 documents plain JSON CRUD + Ransack + search + bulk ops; v3 documents JSON:API envelopes + filter/sort/page params + 204 on delete.
 
 ---
 

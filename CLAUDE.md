@@ -37,6 +37,8 @@ bundle exec standardrb
 | File | Role |
 |---|---|
 | `application_controller.rb` | Inherits v2 base — overrides CRUD with JSON:API envelopes, Pagy pagination, `filter[field]` filtering, `sort` ordering |
+| `authentication_controller.rb` | Thin subclass of v2 auth controller — provides `POST /api/v3/authenticate` |
+| `info_controller.rb` | Inherits v2 info — overrides only `openapi`/`swagger` to call `Api::OpenApi::V3`; all other info actions inherited unchanged |
 | `raw_controller.rb` | `GET/POST /api/v3/raw/sql` — same SELECT-only guard; returns **plain JSON array** (deliberate JSON:API exception) |
 
 ### `Api::V2::ApplicationController` — the core
@@ -66,13 +68,13 @@ Inherits from v2; reuses `authenticate_request`, `extract_model`, `find_record`,
 
 Lazily generates a named `JSONAPI::Serializer` subclass from each model's `json_attrs`. Classes are cached in the `Api::V3` namespace as `<ModelName>Serializer` after first generation.
 
-Attribute resolution order:
-1. `json_attrs[:only]` — used directly if present.
-2. Fallback — `column_names - json_attrs[:except]` when `only:` is absent (handles concerns like `ModelDrivenApiRole` that use `except:` rather than `only:`).
+Attribute resolution is delegated to `Api::ResourceAttributeSet.for(model_class, jattrs:)` (see below), which owns the `only:` / `except:` / `methods:` / `include:` logic in one place. The factory reads the resolved struct fields directly.
 
 `json_attrs[:methods]` — each symbol becomes a block-form `attribute` using `object.send(method_name)`. `send` (not `public_send`) is required — `thecore_backend_commons`'s `BaseApplicationRecordConcern` injects `methods: [:assets_paths, :rich_content_html]` into every model at `after_initialize` time, and both are declared `private`. Rails `as_json` uses `send` for the same reason.
 
 `json_attrs[:include]` — each entry is a bare symbol (`:assoc`) or a hash (`assoc: { only: [:id] }`). A nested serializer is generated as `<AssocModel>For<ParentModel>Serializer`, registered with the correct macro (`has_many`/`has_one`/`belongs_to`) from `reflect_on_all_associations`. Nested serializers are always flat — `include:` is not processed recursively — to prevent infinite loops on circular associations (e.g. `Role ↔ User`).
+
+`extract_includes(include_spec)` is still a public class method (specs test it directly); it delegates to `Api::ResourceAttributeSet#parsed_includes`.
 
 ```ruby
 serializer = Api::V3::SerializerFactory.serializer_for(Role)
@@ -88,9 +90,9 @@ The `:id` field is excluded from `attributes` (the serializer handles it as the 
 Pagination via `page` + `per`. Count-only via `count=true`.  
 Field selection via `a` or `json_attrs` (mirrors Rails `as_json` DSL: `only`, `except`, `methods`, `include`).
 
-### Custom actions — v2 only
+### Custom actions — v2 and v3
 
-Two patterns are supported, checked in `check_for_custom_action`:
+Two patterns are supported, dispatched by `Api::CustomActionDispatcher.call(model, params, request)` (called from `check_for_custom_action` in both v2 and v3 controllers):
 
 **Pattern 1 — class method on the model:**
 ```ruby
@@ -98,7 +100,7 @@ def self.custom_action_my_action(params)
   [{ result: "ok" }, 200]
 end
 ```
-Called via `GET /api/v2/my_model?do=my_action` or `GET /api/v2/my_model/:id?do=my_action`.
+Triggered via `GET /api/v2/my_model?do=my_action`, `GET /api/v3/my_model?do=my_action`, or with `/:id`.
 
 **Pattern 2 — `NonCrudEndpoints` subclass:**
 ```ruby
@@ -109,9 +111,11 @@ class Endpoints::MyModel < NonCrudEndpoints
   end
 end
 ```
-Called via `GET /api/v2/my_model/custom_action/my_action` or with `/:id`.
+Triggered via `GET /api/v2/my_model/custom_action/my_action` or `GET /api/v3/my_model/custom_action/my_action`, with optional `/:id`.
 
 Place endpoint files in `app/models/endpoints/model_name.rb` in the host app.
+
+Custom action responses in v3 are plain JSON (not JSON:API envelopes) — the dispatcher serializes via `body.to_json(json_attrs)` before returning.
 
 ### Concerns to include in host models
 
@@ -142,11 +146,26 @@ Use `ModelDrivenApi.smart_merge(existing, additions)` when composing `json_attrs
 
 ### OpenAPI / Swagger self-generation
 
-`GET /api/v2/info/openapi` (alias `/swagger`) generates a full OpenAPI 3.0 spec dynamically from:
+`GET /api/v2/info/openapi` (alias `/swagger`) and `GET /api/v3/info/openapi` (alias `/swagger`) each generate a full OpenAPI 3.0 spec. Neither endpoint requires authentication.
+
+The generation logic lives in two plain Ruby classes extracted from the info controllers:
+
+| Class | Output |
+|---|---|
+| `Api::OpenApi::V2` | v2 spec: plain JSON, Ransack predicates, search endpoint, PUT, bulk ops, `result` key for SQL |
+| `Api::OpenApi::V3` | v3 spec: JSON:API envelopes, `filter[field]`/`sort`/`page[number|size]` params, PATCH-only, 204 on delete |
+
+Both inherit from `Api::OpenApi::Base` (`lib/api/open_api/base.rb`), which holds the shared type-resolution helpers: `compute_type`, `create_properties_from_model`, `integer?`, `number?`, `datetime?`.
+
+The info controllers call:
+```ruby
+"paths" => Api::OpenApi::V2.new(ApplicationRecord.subclasses, request).generate
+"paths" => Api::OpenApi::V3.new(ApplicationRecord.subclasses, request).generate
+```
+
+Sources in the v2 spec:
 - All `ApplicationRecord` subclasses (CRUD + search + custom action paths)
 - `NonCrudEndpoints` definitions registered via `self.desc`
-
-This endpoint does not require authentication.
 
 ## Routes summary
 
@@ -169,19 +188,27 @@ PUT|PATCH /api/v2/*path/:id(/multi)     → CRUD update / bulk update
 DELETE /api/v2/*path/:id(/multi)        → CRUD destroy / bulk destroy
 
 # V3 (JSON:API-compliant)
+POST   /api/v3/authenticate             → same plain JSON as v2 (Token header)
+GET    /api/v3/info/version|roles|heartbeat|ntp|translations|schema|dsl|settings|swagger|openapi
 GET    /api/v3/raw/sql                  → SQL escape hatch (plain JSON, not JSON:API)
 POST   /api/v3/raw/sql
+GET    /api/v3/:ctrl/custom_action/:action_name(/:id)
+POST   /api/v3/:ctrl/custom_action/:action_name
+...    (PUT/PATCH/DELETE custom actions — plain JSON response, not JSON:API)
 GET    /api/v3/*path/:id               → CRUD show
 GET    /api/v3/*path                   → CRUD index (filter/sort/page params)
 POST   /api/v3/*path                   → CRUD create
-PUT|PATCH /api/v3/*path/:id            → CRUD update
-DELETE /api/v3/*path/:id               → CRUD destroy
+PATCH  /api/v3/*path/:id              → CRUD update (no PUT)
+DELETE /api/v3/*path/:id               → CRUD destroy (204 No Content)
 ```
 
 ## Key invariants and gotchas
 
 - `params` is overridden to `request.parameters` — strong parameters are bypassed intentionally. Do not use `params.require(...).permit(...)` patterns.
-- `extract_model` returns 404 for non-ActiveRecord models (except `TestApi`). If you need a model-less endpoint, use `skip_before_action :extract_model` in a subclass or use a root action in the host app.
+- **`extract_model` delegates to `Api::ModelResolver.resolve`** — raises `Api::ModelResolver::NotFound` for non-AR classes; returns `nil` (no exception) when no class can be resolved (info/utility controllers). `not_found!` is called only in the `rescue` clause in `extract_model`, not inside the resolver itself.
+- **`check_for_custom_action` delegates to `Api::CustomActionDispatcher.call`** — the dispatcher accepts `params[:do]` as the literal action name (no token extraction). Bearer tokens must be sent via the `Authorization` header. The old IoT workaround (`params[:do].split("-")` to extract a token embedded in the action name) has been removed.
+- **`Api::ResourceAttributeSet.for(model_class)`** — single source of truth for resolving `json_attrs[:only]`/`[:except]`/`[:methods]`/`[:include]` into a struct. Both `SerializerFactory` and `Api::OpenApi::Base` use it; never inline this logic again.
+- **`Api::OpenApi::V2` and `Api::OpenApi::V3`** — OpenAPI path generation lives in `lib/api/open_api/`, not in the info controllers. The info controllers only build the outer spec envelope (server URL, version, security) and call `.new(models, request).generate`.
 - `update` and `patch` are the same method. `update_multi` and `destroy_multi` expect comma-separated ids in `params[:ids]`.
 - `json_attrs` resolution priority (v2): query param `a`/`json_attrs` > `@json_attrs` instance variable > `@model.json_attrs`.
 - OAuth routes are only registered if `ThecoreAuthCommons.oauth_vars?` returns true (i.e., env vars for Google/Microsoft are set).
@@ -191,6 +218,7 @@ DELETE /api/v3/*path/:id               → CRUD destroy
 - **`SerializerFactory` caches by class name** — once `Api::V3::RoleSerializer` (or any `<Model>Serializer`) is set in the `Api::V3` namespace it is never regenerated. Changes to `json_attrs` at runtime are not reflected until the process restarts.
 - **`SerializerFactory` uses `send`, not `public_send`, for `methods:`** — `thecore_backend_commons` injects private methods (`assets_paths`, `rich_content_html`) into every model. Using `public_send` raises `NoMethodError: private method 'assets_paths' called`. This mirrors Rails `as_json` behaviour.
 - **`append_migrations` uses `==`, not `.match`** — the guard in `engine.rb` compares `app.root.to_s == root.to_s`. A substring `.match` would cause the dummy app (a subdirectory of the engine) to falsely match the engine root and skip appending the gem's own migrations.
+- **Custom action responses in v3 are plain JSON, not JSON:API envelopes** — the dispatcher serializes via `body.to_json(json_attrs)` before returning; the v3 action renders `json: result` without wrapping in a `{ data: … }` envelope.
 
 ## Test infrastructure
 

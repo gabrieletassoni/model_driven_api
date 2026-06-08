@@ -46,3 +46,21 @@ _Avoid_: auto-serializer, dynamic serializer
 **JSON:API-native params**:
 The query parameter conventions used in API v3: `?filter[field]=value` for filtering, `?sort=field,-other` for ordering, `?page[number]=N&page[size]=N` for pagination. Filter fields are validated against the Resource's `ransackable_attributes` whitelist.
 _Avoid_: JSON:API query params, v3 params
+
+### Deep modules (architectural)
+
+**ResourceAttributeSet**:
+A value object (`Struct`) that resolves a Resource's `json_attrs` (`only:`/`except:`/`methods:`/`include:`) into a single named struct. Created via `Api::ResourceAttributeSet.for(model_class)`. The single source of truth for attribute resolution — used by both the Serializer Factory and the OpenAPI generator.
+_Avoid_: attribute config, field resolver
+
+**ModelResolver**:
+A plain Ruby class (`Api::ModelResolver`) that resolves the `@model` constant from request params. Raises `Api::ModelResolver::NotFound` when a class is found but is not an ActiveRecord model. Returns `nil` (no exception) when no class can be resolved — allowing model-less controllers (e.g. info endpoints) to continue.
+_Avoid_: model lookup, controller model extraction
+
+**CustomActionDispatcher**:
+A plain Ruby class (`Api::CustomActionDispatcher`) that detects and dispatches Custom Action requests (`?do=` or `/custom_action/` URL patterns) from both v2 and v3 controllers. Returns `false` when no Custom Action is detected, or `[true, body, status]` when dispatched. Bearer tokens are read from the `Authorization` header only.
+_Avoid_: custom action handler, action dispatcher
+
+**OpenApiGenerator**:
+A family of plain Ruby classes (`Api::OpenApi::Base`, `V2`, `V3`) that generate OpenAPI 3.0 path objects. `Base` holds shared type helpers. `V2#generate` produces v2-accurate paths; `V3#generate` produces v3-accurate paths with JSON:API schemas. Called from the info controllers — the controllers own the outer spec envelope, the generators own the paths.
+_Avoid_: swagger generator, OpenAPI builder

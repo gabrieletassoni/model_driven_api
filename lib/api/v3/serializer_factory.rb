@@ -14,18 +14,11 @@ module Api
         return Api::V3.const_get(const_name) if Api::V3.const_defined?(const_name)
 
         jattrs = nested_attrs || (model_class.respond_to?(:json_attrs) ? (model_class.json_attrs || {}) : {})
-
-        only = Array(jattrs[:only]).map(&:to_sym)
-        if only.empty?
-          except = Array(jattrs[:except]).map(&:to_sym)
-          only = model_class.column_names.map(&:to_sym) - except
-        end
-        attrs = only.reject { |a| a == :id }
-        methods_list = Array(jattrs[:methods]).map(&:to_sym)
+        attr_set = Api::ResourceAttributeSet.for(model_class, jattrs: jattrs)
 
         # Nested serializers are always flat — no recursive includes — to prevent
         # infinite loops on circular associations (e.g. Role↔User).
-        includes_map = parent_name ? {} : extract_includes(jattrs[:include])
+        includes_map = parent_name ? {} : attr_set.parsed_includes
 
         type = model_class.model_name.plural.to_sym
 
@@ -42,21 +35,18 @@ module Api
         klass = Class.new do
           include JSONAPI::Serializer
           set_type type
-          attributes(*attrs) if attrs.any?
+          attributes(*attr_set.attributes) if attr_set.attributes.any?
 
-          methods_list.each do |method_name|
+          attr_set.methods_list.each do |method_name|
             attribute(method_name) { |object| object.send(method_name) }
           end
 
           nested_info.each do |assoc_name, info|
             ser = info[:serializer]
             case info[:macro]
-            when :has_many
-              has_many assoc_name, serializer: ser
-            when :has_one
-              has_one assoc_name, serializer: ser
-            when :belongs_to
-              belongs_to assoc_name, serializer: ser
+            when :has_many   then has_many   assoc_name, serializer: ser
+            when :has_one    then has_one    assoc_name, serializer: ser
+            when :belongs_to then belongs_to assoc_name, serializer: ser
             end
           end
         end
@@ -66,15 +56,9 @@ module Api
       end
 
       # Parse json_attrs[:include] into { assoc_name => spec_or_nil }.
-      # Handles both symbol items (:roles) and hash items (users: { only: [:id] }).
+      # Delegates to Api::ResourceAttributeSet#parsed_includes.
       def self.extract_includes(include_spec)
-        return {} unless include_spec
-        Array(include_spec).each_with_object({}) do |item, hash|
-          case item
-          when Hash then item.each { |k, v| hash[k] = v }
-          when Symbol then hash[item] = nil
-          end
-        end
+        Api::ResourceAttributeSet.new([], [], include_spec).parsed_includes
       end
     end
   end

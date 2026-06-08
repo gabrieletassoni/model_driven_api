@@ -30,10 +30,23 @@ API v3 provides a JSON:API-compliant API at `/api/v3/` that auto-generates from 
 18. As a performance-sensitive API consumer, I want GET and POST /api/v3/raw/sql to execute a caller-supplied SELECT query and return a plain JSON array, so that I can bypass the Resource abstraction when ORM-generated SQL is insufficient.
 19. As an API consumer calling the SQL Escape Hatch, I want to receive HTTP 400 with a real error message when my query is not a SELECT or is syntactically invalid, so that I can diagnose problems without guessing.
 20. As an API consumer calling the SQL Escape Hatch, I want the endpoint to require a valid JWT, so that raw database access is protected.
+21. As an API consumer, I want `POST /api/v3/authenticate` to return a JWT in the `Token` response header, so that I can authenticate without switching base URLs.
+22. As an API consumer, I want sideloaded associations to be included by default based on `json_attrs[:include]`, so that common related data is returned without explicit `?include=` params.
+23. As an API consumer, I want to override sideloads with `?include=assoc1,assoc2` and suppress all sideloads with `?include=` (empty string), so that I control bandwidth precisely.
+24. As an API consumer, I want to request a sparse fieldset with `?fields[type]=f1,f2` to reduce response size, so that I can fetch only the attributes I need.
+25. As an API consumer, I want `GET /api/v3/info/swagger` to return a v3-accurate OpenAPI spec (JSON:API envelopes, filter/sort/page params, no search endpoint, no PUT, 204 on delete), so that client SDK generators produce correct code.
+26. As an API consumer, I want all info endpoints (`version`, `heartbeat`, `roles`, `schema`, etc.) available under `/api/v3/info/`, so that v3 clients have a single base URL for all operations.
+27. As a host app developer, I want Custom Actions declared as class methods or `NonCrudEndpoints` subclasses to be callable at `/api/v3/:model/custom_action/:action`, so that escape-hatch operations work from a v3 base URL.
 
 ## Implementation Decisions
 
-- **Serializer Factory** (`Api::V3::SerializerFactory`): a class with a single class method `serializer_for(model_class)`. It checks for an existing constant (`Api::V3::ModelSerializer`) before generating; if found, it returns it (host app override). Otherwise it generates a new class that includes `JSONAPI::Serializer`, calls `set_type` with the plural resource name, and declares attributes from `json_attrs[:only]` (excluding `:id`, which jsonapi-serializer handles separately). The generated class is assigned to a named constant in the `Api::V3` namespace for cacheability.
+- **Serializer Factory** (`Api::V3::SerializerFactory`): a class with a single class method `serializer_for(model_class)`. It checks for an existing constant (`Api::V3::ModelSerializer`) before generating; if found, it returns it (host app override). Otherwise it generates a new class that includes `JSONAPI::Serializer`, calls `set_type` with the plural resource name, and declares attributes resolved via `Api::ResourceAttributeSet.for(model_class)` (excluding `:id`, which jsonapi-serializer handles separately). Supports all four `json_attrs` keys: `only:` / `except:` (attribute list), `methods:` (virtual attributes via `object.send`), `include:` (associations as nested serializers). The generated class is assigned to a named constant in the `Api::V3` namespace for cacheability.
+
+- **ResourceAttributeSet** (`Api::ResourceAttributeSet`): a `Struct` with fields `attributes`, `methods_list`, `includes`. Created via `Api::ResourceAttributeSet.for(model_class, jattrs:)`. Owns the `only:`/`except:` resolution logic used by both the Serializer Factory and the OpenAPI generator. `parsed_includes` converts `json_attrs[:include]` to `{ assoc_name => spec_or_nil }`.
+
+- **ModelResolver** (`Api::ModelResolver`): resolves `@model` from `params[:ctrl]`, path, or controller name. Raises `Api::ModelResolver::NotFound` when a class is found but is not an ActiveRecord model (and not `TestApi`). Returns `nil` (no exception) when no class can be resolved — this preserves the behaviour for info/utility controllers that call `extract_model` but have no model context.
+
+- **CustomActionDispatcher** (`Api::CustomActionDispatcher`): dispatches `?do=action` and `/custom_action/action` requests in both v2 and v3. Returns `false` when no custom action is detected, or `[true, body, status]` when dispatched. Bearer token always comes from the `Authorization` header — the former IoT workaround (extracting a token from `params[:do].split("-")`) has been removed.
 
 - **v3 ApplicationController** inherits from `Api::V2::ApplicationController` to reuse authentication, CanCan authz, `extract_model`, `find_record`, and `ApiExceptionManagement`. It overrides all five CRUD actions (`index`, `show`, `create`, `update`/`patch`, `destroy`) to produce JSON:API responses. `update` and `patch` are aliased (same as v2). `destroy` returns `head :no_content` (204) instead of 200.
 
@@ -47,11 +60,21 @@ API v3 provides a JSON:API-compliant API at `/api/v3/` that auto-generates from 
 
 - **MIME type registration**: the engine initializer registers `application/vnd.api+json` as `:json_api` and registers a body parser that reuses the standard JSON parser, so Rails automatically populates `request.parameters` from JSON:API request bodies.
 
-- **Routes**: a `namespace :v3` block in `config/routes.rb` mirrors the v2 wildcard CRUD routes plus the raw namespace. v3 does not expose bulk update/destroy or custom action routes in this iteration.
+- **Routes**: a `namespace :v3` block in `config/routes.rb` includes: `POST /authenticate`, all `GET /info/*` endpoints, `GET+POST /raw/sql`, custom action routes (`GET/POST/PUT/PATCH/DELETE /:ctrl/custom_action/:action_name(/:id)`), and wildcard CRUD routes. v3 does not expose bulk update/destroy (`/multi`).
 
 - **SQL Escape Hatch**: already implemented (`Api::V3::RawController`). Skips `extract_model`, inherits auth from `Api::V3::ApplicationController`, returns plain JSON array via `SafeSqlExecutor.execute_select(...).to_a`, surfaces `ArgumentError` and `ActiveRecord::StatementInvalid` as 400s with real messages.
 
-- **`lib/model_driven_api.rb`**: adds `require "api/v3/serializer_factory"` so the factory is available at engine load time.
+- **`lib/model_driven_api.rb`**: requires all new lib modules at engine load time: `api/resource_attribute_set`, `api/model_resolver`, `api/custom_action_dispatcher`, `api/open_api/base`, `api/open_api/v2`, `api/open_api/v3`, `api/v3/serializer_factory`.
+
+- **OpenAPI generator** (`Api::OpenApi::Base`, `V2`, `V3`): OpenAPI path generation is extracted from the info controllers into standalone plain Ruby classes. `Api::OpenApi::Base` holds shared type helpers (`compute_type`, `create_properties_from_model`). `Api::OpenApi::V2#generate` produces the v2 spec paths (plain JSON, Ransack, search, bulk, PUT). `Api::OpenApi::V3#generate` produces the v3 spec paths (JSON:API envelopes, filter/sort/page params, PATCH only, 204 on delete). Info controllers call `.new(models, request).generate` for paths and `.description` for the API description string. Both swagger endpoints are unauthenticated.
+
+- **Sideloading**: `json_attrs[:include]` entries declare associations on the generated serializer and act as default sideloads. Clients override with `?include=assoc1,assoc2` or suppress with `?include=` (empty string). Implemented in `requested_includes` / `default_includes` on `Api::V3::ApplicationController`.
+
+- **Sparse fieldsets**: `?fields[type]=f1,f2` narrows attributes per resource type. Passed to the serializer as `fields: { type: [:f1, :f2] }`. Implemented in `sparse_fields` / `serializer_opts` on `Api::V3::ApplicationController`.
+
+- **Authentication at /api/v3/authenticate**: `Api::V3::AuthenticationController` is a thin subclass of `Api::V2::AuthenticationController`. Provides `POST /api/v3/authenticate` — same plain JSON response and `Token` header as v2. Allows v3 clients to use a single base URL for auth + CRUD + info.
+
+- **Info endpoints at /api/v3/info/**: `Api::V3::InfoController` inherits from `Api::V2::InfoController`. All info actions (version, roles, heartbeat, ntp, translations, schema, dsl, settings) are inherited unchanged. Only `openapi`/`swagger` is overridden to call `Api::OpenApi::V3` and produce a v3-accurate spec.
 
 ## Testing Decisions
 
@@ -65,14 +88,21 @@ API v3 provides a JSON:API-compliant API at `/api/v3/` that auto-generates from 
 
 ## Out of Scope
 
-- Bulk update and destroy (`update_multi`, `destroy_multi`) — v2 only for now.
-- Custom Actions (`?do=`, `/custom_action/`) — v2 only for now.
-- JSON:API `relationships` and `included` compound documents — v3 returns flat attributes only.
-- JSON:API `links` (self, pagination links) — `meta.total` is sufficient for the first iteration.
-- OpenAPI/Swagger self-generation for v3 (`/api/v3/info/openapi`).
-- Info endpoints (`version`, `roles`, `schema`, etc.) under `/api/v3/info/`.
-- OAuth endpoints under `/api/v3/auth/`.
-- The `json_attrs` per-request override via `?a=` / `?json_attrs=` query params.
+- Bulk update and destroy (`update_multi`, `destroy_multi`) — v2 only.
+- OAuth endpoints under `/api/v3/auth/` — v2 only.
+- The `json_attrs` per-request override via `?a=` / `?json_attrs=` query params — v2 only.
+- JSON:API `links` (self, pagination links) — `meta.total` is sufficient.
+
+## Previously Out of Scope — Now Implemented
+
+These items were marked out of scope in the original PRD iteration and have since been implemented:
+
+- **Custom Actions** (`?do=`, `/custom_action/`) — now available in both v2 and v3 via `Api::CustomActionDispatcher`. Responses are plain JSON (not JSON:API envelopes) in both versions.
+- **JSON:API sideloading** (`include:` in `json_attrs`, `?include=` client override, `?include=` suppression) — implemented via hybrid sideloading in `requested_includes` / `default_includes`.
+- **JSON:API sparse fieldsets** (`?fields[type]=f1,f2`) — implemented in `sparse_fields` / `serializer_opts`.
+- **OpenAPI/Swagger for v3** (`GET /api/v3/info/openapi`) — implemented in `Api::OpenApi::V3`; v3-accurate spec with JSON:API schemas.
+- **Info endpoints under `/api/v3/info/`** — all info actions available via `Api::V3::InfoController` (inherits v2).
+- **Authentication at `/api/v3/authenticate`** — `Api::V3::AuthenticationController` subclasses v2.
 
 ## Further Notes
 

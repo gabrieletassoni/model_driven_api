@@ -140,43 +140,9 @@ class Api::V2::ApplicationController < ActionController::API
   # or
   # [GET|PUT|POST|DELETE] :controller/custom_action/:custom_action/:id
   def check_for_custom_action
-    custom_action, token = if !params[:do].blank?
-        # This also responds to custom actions which have the bearer token in the custom action name. A workaround to remove for some IoT devices
-        # Which don't support token in header or in querystring
-        # This is for backward compatibility and in future it can ben removed
-        params[:do].split("-")
-      elsif request.url.include? "/custom_action/"
-        [params[:action_name], nil]
-      else
-        # Not a custom action call
-        false
-      end
-    return false unless custom_action
-    # Poor man's solution to avoid the possibility to
-    # call an unwanted method in the AR Model.
-
-    # Adding some useful information to the params hash
-    params[:request_url] = request.url
-    params[:remote_ip] = request.remote_ip
-    params[:request_verb] = request.request_method
-    params[:token] = token.presence || bearer_token
-    # The endpoint can be expressed in two ways:
-    # 1. As a method in the model, with suffix custom_action_<custom_action>
-    # 2. As a module instance method in the model, like Track::Endpoints.inventory
-    # Example:
-    # Endpoints::TestApi.new(:test, {request_verb: "POST", is_connected: "Uhhhh"}).result
-    Rails.logger.debug("Checking for custom action #{custom_action} in #{@model}")
-    if @model.respond_to?("custom_action_#{custom_action}")
-      body, status = @model.send("custom_action_#{custom_action}", params)
-    elsif ("Endpoints::#{@model}".constantize rescue false) && "Endpoints::#{@model}".constantize.instance_methods.include?(custom_action.to_sym)
-      # Custom endpoint exists and can be called in the sub-modules form
-      body, status = "Endpoints::#{@model}".constantize.new(custom_action, params).result
-    else
-      # Custom endpoint does not exist or cannot be called
-      raise NoMethodError
-    end
-
-    return true, body.to_json(json_attrs), status
+    dispatched, body, status = Api::CustomActionDispatcher.call(@model, params, request)
+    return false unless dispatched
+    [true, body.to_json(json_attrs), status]
   end
 
   def bearer_token
@@ -229,17 +195,10 @@ class Api::V2::ApplicationController < ActionController::API
   end
 
   def extract_model
-    # This method is only valid for ActiveRecords
-    # For any other model-less controller, the actions must be
-    # defined in the route, and must exist in the controller definition.
-    # So, if it's not an activerecord, the find model makes no sense at all
-    # thus must return 404.
-    @model = (params[:ctrl].classify.constantize rescue params[:path].split("/").first.classify.constantize rescue controller_path.classify.constantize rescue controller_name.classify.constantize rescue nil)
-    # Getting the body of the request if it exists, it's ok the singular or
-    # plural form, this helps with automatic tests with Insomnia.
+    @model = Api::ModelResolver.resolve(params, controller_path, controller_name)
     @body = (params[@model.model_name.singular].presence || params[@model.model_name.route_key]) rescue params
-    # Only ActiveRecords can have this model caputed
-    return not_found! if (@model != TestApi && !@model.new.is_a?(ActiveRecord::Base) rescue false)
+  rescue Api::ModelResolver::NotFound
+    not_found!
   end
 
   def check_authorization(cmd)

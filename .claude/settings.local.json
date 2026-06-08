@@ -59,7 +59,8 @@
       "Bash(PGPASSWORD=postgres PGHOST=db PGUSER=postgres psql -d model_driven_api_test -c \"\\\\dt\")",
       "Bash(RAILS_ENV=test bundle exec rails runner \"require 'bcrypt'; puts Role.json_attrs.inspect\")",
       "Bash(RAILS_ENV=test bundle exec rails routes)",
-      "Bash(BUNDLE_GEMFILE=/workspaces/project/backend/Gemfile bundle exec ruby -e ' *)"
+      "Bash(BUNDLE_GEMFILE=/workspaces/project/backend/Gemfile bundle exec ruby -e ' *)",
+      "Bash(xdg-open /tmp/architecture-review-20260608_141032.html)"
     ],
     "additionalDirectories": [
       "/home/gabrieletassoni/Git/rubyonrails/thecore_project/pjm-poc/vendor/submodules/model_driven_api/docs",
