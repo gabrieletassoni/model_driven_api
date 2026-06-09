@@ -6,6 +6,7 @@ require 'ransack'
 require 'jwt'
 require 'json_web_token'
 require "kaminari"
+require "pagy"
 # require "multi_json"
 require "simple_command"
 

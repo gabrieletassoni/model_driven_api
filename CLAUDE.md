@@ -22,6 +22,8 @@ bundle exec standardrb
 
 `lib/model_driven_api.rb` — loads all dependencies and requires the engine. The engine (`lib/model_driven_api/engine.rb`) appends the gem's migrations to the host app and registers the `application/vnd.api+json` MIME type with a parameter parser (symbol key `:json_api` in `ActionDispatch::Request.parameter_parsers`).
 
+`pagy` is explicitly `require`d here (alongside `kaminari`). Pagy is not auto-loaded by Bundler because it is needed the moment `Api::V3::ApplicationController` class body is evaluated — before eager loading runs. Removing `require "pagy"` from this file causes `NameError: uninitialized constant Pagy` on any rake task or server boot that loads the application.
+
 ### Controllers (`app/controllers/api/v2/`)
 
 | File | Role |

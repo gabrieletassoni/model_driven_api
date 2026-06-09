@@ -36,6 +36,8 @@ Add to your host app's `Gemfile`:
 gem 'model_driven_api', '~> 3.6'
 ```
 
+The gem declares `pagy ~> 9.0` as a runtime dependency and explicitly requires it at load time. No additional configuration is needed for pagination to work.
+
 Include the engine concerns in your host models:
 
 ```ruby
