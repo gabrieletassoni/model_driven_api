@@ -13,7 +13,7 @@ class Api::V2::ApplicationController < ActionController::API
 
   # GET :controller/
   def index
-    authorize! :index, @model
+    authorize! :index, @model unless public_custom_action?
 
     # Custom Action
     status, result, status_number = check_for_custom_action
@@ -67,7 +67,7 @@ class Api::V2::ApplicationController < ActionController::API
   def create
     # Normal Create Action
     Rails.logger.debug("Creating a new record #{@record}")
-    authorize! :create, @record.presence || @model
+    authorize! :create, @record.presence || @model unless public_custom_action?
     # Custom Action
     status, result, status_number = check_for_custom_action
     return render json: result, status: (status_number.presence || 200) if status == true
@@ -127,6 +127,19 @@ class Api::V2::ApplicationController < ActionController::API
 
   private
 
+  # Returns true if the current request is for a NonCrudEndpoints custom action
+  # that has been declared as public (no authentication required).
+  # Forces autoloading of the Endpoints::<Model> class so the public_action_registry
+  # is populated before authenticate_request checks it.
+  def public_custom_action?
+    return false unless request.url.include?("/custom_action/")
+    model_name = params[:ctrl].to_s.classify
+    action_name = params[:action_name].to_s
+    # Ensure the endpoint class is loaded so its public_action declarations are registered.
+    ("Endpoints::#{model_name}".constantize rescue nil)
+    NonCrudEndpoints.public_action?(model_name, action_name)
+  end
+
   ## CUSTOM ACTION
   # [GET|PUT|POST|DELETE] :controller?do=:custom_action
   # or
@@ -159,6 +172,9 @@ class Api::V2::ApplicationController < ActionController::API
   end
 
   def authenticate_request
+    # Skip auth for public NonCrudEndpoints actions (e.g. vapid_public_key).
+    return if public_custom_action?
+
     @current_user = nil
     Settings.ns(:security).allowed_authorization_headers.split(",").each do |header|
       # puts "Found header #{header}: #{request.headers[header]}"

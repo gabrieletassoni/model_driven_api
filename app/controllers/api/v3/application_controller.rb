@@ -2,7 +2,7 @@ class Api::V3::ApplicationController < Api::V2::ApplicationController
   include Pagy::Backend
 
   def index
-    authorize! :index, @model
+    authorize! :index, @model unless public_custom_action?
 
     status, result, status_number = check_for_custom_action
     return render json: result, status: (status_number.presence || 200) if status == true

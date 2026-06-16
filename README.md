@@ -528,6 +528,317 @@ fetch(`/api/v2/products/${id}`, { method: 'PATCH', body: formData });
 
 ---
 
+---
+
+## Web Push (VAPID) from a React client
+
+This section is the complete integration guide for React apps that want to receive browser push notifications from a Thecore backend. The server-side setup (models, service, ActionCable channel) is documented in the [`thecore_backend_commons` README](../thecore_backend_commons/README.md#web-push-notifications-vapid).
+
+### Prerequisites
+
+1. Run `rails db:seed` on the backend — this generates the VAPID key pair automatically.
+2. Set `vapid.contact_email` in RailsAdmin → Settings (e.g. `admin@yourapp.com`).
+3. Your site must be served over **HTTPS** (required by the Push API in all browsers). `localhost` is exempt for development.
+
+### Endpoint reference
+
+All endpoints live under `/api/v2/push_subscribers/custom_action/`.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `vapid_public_key` | **No** | Returns the VAPID public key for `PushManager.subscribe` |
+| `POST` | `subscribe` | Yes (JWT) | Registers or updates a push subscription for the current user |
+| `POST` | `send_push` | Yes (JWT) | Creates a `PushMessage` and dispatches it to an active subscriber |
+| `POST` | `acknowledge` | Yes (JWT) | Marks a message as `received` and/or `read` |
+
+### Step 1 — Register a service worker
+
+Create `public/sw.js` in your React app:
+
+```javascript
+// public/sw.js
+
+self.addEventListener('push', event => {
+  const data = event.data?.json() ?? {};
+  event.waitUntil(
+    self.registration.showNotification(data.title ?? 'Notification', {
+      body: data.body,
+      icon: data.icon ?? '/favicon.ico',
+      data: { url: data.url },
+    })
+  );
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const url = event.notification.data?.url;
+  if (url) {
+    event.waitUntil(clients.openWindow(url));
+  }
+});
+```
+
+### Step 2 — Subscribe to push notifications
+
+```javascript
+// src/usePushSubscription.js
+const API_BASE = process.env.REACT_APP_API_URL ?? '/api/v2';
+
+// Convert a base64url string to a Uint8Array (required by PushManager)
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+// Convert a PushSubscription key to a base64url string (required by the backend)
+function keyToBase64(subscription, key) {
+  return btoa(String.fromCharCode(...new Uint8Array(subscription.getKey(key))));
+}
+
+export async function subscribeToPush(jwtToken) {
+  // 1. Register service worker
+  const registration = await navigator.serviceWorker.register('/sw.js');
+
+  // 2. Fetch the VAPID public key (no auth needed)
+  const res = await fetch(`${API_BASE}/push_subscribers/custom_action/vapid_public_key`);
+  const { vapid_public_key } = await res.json();
+
+  // 3. Subscribe via the Push API
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(vapid_public_key),
+  });
+
+  // 4. Register the subscription with the backend
+  const registerRes = await fetch(
+    `${API_BASE}/push_subscribers/custom_action/subscribe`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${jwtToken}`,
+      },
+      body: JSON.stringify({
+        endpoint: subscription.endpoint,
+        p256dh: keyToBase64(subscription, 'p256dh'),
+        auth:   keyToBase64(subscription, 'auth'),
+        user_agent: navigator.userAgent,
+      }),
+    }
+  );
+
+  const subscriber = await registerRes.json();
+  // subscriber.id is the push_subscriber_id to use with ActionCable and send_push
+  return subscriber;
+}
+```
+
+Call this after the user logs in (a JWT is required for `subscribe`):
+
+```javascript
+import { subscribeToPush } from './usePushSubscription';
+
+const subscriber = await subscribeToPush(jwtToken);
+localStorage.setItem('push_subscriber_id', subscriber.id);
+```
+
+### Step 3 — Listen via ActionCable
+
+Install the ActionCable client if you haven't already:
+
+```bash
+npm install @rails/actioncable
+# or
+yarn add @rails/actioncable
+```
+
+```javascript
+// src/usePushChannel.js
+import { createConsumer } from '@rails/actioncable';
+
+const WS_URL = process.env.REACT_APP_WS_URL ?? 'ws://localhost:3000/cable';
+
+export function connectPushChannel(jwtToken, subscriberId, onMessage) {
+  // The JWT token is passed as a query parameter so the ActionCable
+  // connection.rb can authenticate the WebSocket handshake.
+  const consumer = createConsumer(`${WS_URL}?token=${jwtToken}`);
+
+  const subscription = consumer.subscriptions.create(
+    { channel: 'PushNotificationChannel', subscriber_id: subscriberId },
+    {
+      received(data) {
+        // data is a PushMessage serialised as JSON:
+        // { id, title, body, url, icon, sent_at, received_at, read_at }
+        onMessage(data);
+      },
+      connected() {
+        console.log('[PushNotificationChannel] connected');
+      },
+      disconnected() {
+        console.log('[PushNotificationChannel] disconnected');
+      },
+    }
+  );
+
+  // Return a cleanup function
+  return () => {
+    subscription.unsubscribe();
+    consumer.disconnect();
+  };
+}
+```
+
+Use it in a React component or hook:
+
+```javascript
+import { useEffect } from 'react';
+import { connectPushChannel } from './usePushChannel';
+
+function App() {
+  const jwtToken = localStorage.getItem('token');
+  const subscriberId = localStorage.getItem('push_subscriber_id');
+
+  useEffect(() => {
+    if (!jwtToken || !subscriberId) return;
+
+    const disconnect = connectPushChannel(jwtToken, subscriberId, message => {
+      console.log('New push message via ActionCable:', message);
+      // Optionally acknowledge receipt immediately
+      acknowledgeMessage(jwtToken, message.id, { received: true });
+    });
+
+    return disconnect; // cleanup on unmount
+  }, [jwtToken, subscriberId]);
+}
+```
+
+> **Tip:** use `user_id` instead of `subscriber_id` if you want to receive messages across all active subscriptions for the current user (e.g. multiple tabs):
+> ```javascript
+> { channel: 'PushNotificationChannel', user_id: currentUserId }
+> ```
+
+### Step 4 — Acknowledge receipt and read
+
+```javascript
+// src/pushApi.js
+const API_BASE = process.env.REACT_APP_API_URL ?? '/api/v2';
+
+export async function acknowledgeMessage(jwtToken, messageId, { received = false, read = false } = {}) {
+  const res = await fetch(
+    `${API_BASE}/push_subscribers/custom_action/acknowledge`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${jwtToken}`,
+      },
+      body: JSON.stringify({
+        push_message_id: messageId,
+        received,
+        read,
+      }),
+    }
+  );
+  return res.json();
+  // Response: { id, title, body, url, icon, sent_at, received_at, read_at, ... }
+}
+```
+
+Call `received: true` as soon as the message arrives via ActionCable. Call `read: true` when the user opens or dismisses it. Fields are set only once — a second call with the same flag is a no-op (idempotent).
+
+### Step 5 — Send a push from the backend (optional)
+
+Normally the backend triggers pushes from jobs or model callbacks. If you need to trigger a push from a privileged frontend (e.g. an admin panel), use `send_push`:
+
+```javascript
+export async function sendPush(jwtToken, { subscriberId, title, body, url, icon }) {
+  const res = await fetch(
+    `${API_BASE}/push_subscribers/custom_action/send_push`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${jwtToken}`,
+      },
+      body: JSON.stringify({
+        push_subscriber_id: subscriberId,
+        title,
+        body,
+        url,   // optional
+        icon,  // optional
+      }),
+    }
+  );
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error ?? `HTTP ${res.status}`);
+  }
+  return res.json(); // PushMessage record
+}
+```
+
+### Full flow summary
+
+```
+React app                         Thecore backend
+    │                                   │
+    │── GET vapid_public_key ──────────►│  (no auth)
+    │◄── { vapid_public_key: "..." } ───│
+    │                                   │
+    │  navigator.serviceWorker.register('/sw.js')
+    │  registration.pushManager.subscribe({ applicationServerKey })
+    │                                   │
+    │── POST subscribe ────────────────►│  creates/updates PushSubscriber
+    │◄── { id: 42, endpoint, ... } ─────│
+    │                                   │
+    │  createConsumer(wsUrl?token=jwt)  │
+    │── WS upgrade ────────────────────►│  PushNotificationChannel#subscribed
+    │◄── stream: push_notifications_subscriber_42
+    │                                   │
+    │  [backend dispatches push]        │
+    │◄── Web Push payload (sw.js) ──────│  Webpush.payload_send via VAPID
+    │  showNotification(title, body)    │
+    │                                   │
+    │◄── ActionCable data ──────────────│  PushNotificationChannel.broadcast_to
+    │  onMessage(data)                  │
+    │                                   │
+    │── POST acknowledge (received) ───►│  message.received_at = now
+    │── POST acknowledge (read) ────────►│  message.read_at = now
+```
+
+### Handling subscription expiry
+
+Push service endpoints expire (the push provider returns HTTP 410). The backend automatically calls `subscriber.expire!` when this happens, but the client needs to re-subscribe on the next boot:
+
+```javascript
+export async function ensureSubscription(jwtToken) {
+  // Re-subscribe unconditionally — subscribe_for upserts on endpoint,
+  // so re-registering the same browser is always safe and clears expired_at.
+  const sub = await subscribeToPush(jwtToken);
+  localStorage.setItem('push_subscriber_id', sub.id);
+  return sub;
+}
+```
+
+### Permissions check
+
+Before calling `subscribeToPush`, check that the browser supports push and the user has granted permission:
+
+```javascript
+export async function requestPushPermission() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    console.warn('Web Push not supported in this browser');
+    return false;
+  }
+  const permission = await Notification.requestPermission();
+  return permission === 'granted';
+}
+```
+
+---
+
 ## License
 
 MIT

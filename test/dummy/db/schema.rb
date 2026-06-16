@@ -176,6 +176,33 @@ ActiveRecord::Schema[7.2].define(version: 2025_12_16_111217) do
     t.index ["email"], name: "index_users_on_email", unique: true
   end
 
+  create_table "push_subscribers", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.text "endpoint", null: false
+    t.string "p256dh"
+    t.string "auth"
+    t.string "user_agent"
+    t.datetime "expired_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["endpoint"], name: "index_push_subscribers_on_endpoint", unique: true
+    t.index ["user_id"], name: "index_push_subscribers_on_user_id"
+  end
+
+  create_table "push_messages", force: :cascade do |t|
+    t.bigint "push_subscriber_id", null: false
+    t.string "title", null: false
+    t.text "body", null: false
+    t.string "url"
+    t.string "icon"
+    t.datetime "sent_at"
+    t.datetime "received_at"
+    t.datetime "read_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["push_subscriber_id"], name: "index_push_messages_on_push_subscriber_id"
+  end
+
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "permission_roles", "permissions"
@@ -186,4 +213,5 @@ ActiveRecord::Schema[7.2].define(version: 2025_12_16_111217) do
   add_foreign_key "role_users", "roles"
   add_foreign_key "role_users", "users"
   add_foreign_key "used_tokens", "users"
+  add_foreign_key "push_messages", "push_subscribers"
 end

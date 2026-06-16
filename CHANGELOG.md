@@ -1,5 +1,27 @@
 ## [Unreleased]
 
+## [3.7.0] - 2026-06-16
+
+### Changed
+- **`jwt` dependency bumped from `~> 2.4` to `~> 3.0`** — aligns with `web-push ~> 3.0` (the actively maintained pushpad fork of the abandoned webpush gem). jwt 3.x is backward compatible with existing `JWT.encode`/`JWT.decode` usage (no API changes needed).
+
+## [3.6.4] - 2026-06-16
+
+### Added
+
+- **Public (unauthenticated) custom actions** — `NonCrudEndpoints.public_action(:action_name)` registers an action as requiring no authentication. `authenticate_request` and `authorize!` are skipped for these actions in both v2 and v3 controllers. The `Endpoints::<Model>` class is force-loaded in `public_custom_action?` so the registry is populated before the before-action chain runs.
+
+- **Push subscription endpoints** (`app/models/endpoints/push_subscriber.rb`)
+  - `GET /api/v2/push_subscribers/custom_action/vapid_public_key` — returns `{ vapid_public_key: }` from `ThecoreSettings` (ns: `:vapid`, key: `:public_key`); **no authentication required**
+  - `GET /api/v3/push_subscribers/custom_action/vapid_public_key` — same, v3 prefix; no authentication required
+  - `POST /api/v2/push_subscribers/custom_action/subscribe` — registers or updates a `PushSubscriber` for the authenticated user; returns 201 on create, 200 on update; re-subscribing an expired subscriber resets `expired_at` to nil; requires authentication
+  - `POST /api/v2/push_subscribers/custom_action/send_push` — creates a `PushMessage` for the given `push_subscriber_id` (active subscribers only) and dispatches it via `ThecoreBackendCommons::PushNotificationService.dispatch`; returns 201 on success, 404 if subscriber not found, 422 on validation failure; requires authentication
+  - `POST /api/v2/push_subscribers/custom_action/acknowledge` — marks a `PushMessage` as received (`received_at`) or read (`read_at`) based on `received: true` / `read: true` params; idempotent (only sets if nil); returns 200 on success, 404 if message not found; requires authentication
+
+### Fixed
+
+- **`api_error` not halting the before-action chain** — `head status && return if errors.blank?` was parsed as `head(status && return)`, causing `return` to exit `api_error` before `head` was called and leaving no response rendered. Replaced with an explicit `if/head/return` block in `lib/concerns/api_exception_management.rb`.
+
 ## [3.6.3] - 2026-06-08
 
 ### Added

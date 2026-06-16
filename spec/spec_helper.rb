@@ -1,4 +1,4 @@
-ENV["RAILS_ENV"] ||= "test"
+ENV["RAILS_ENV"] = "test"
 ENV["SECRET_KEY_BASE"] ||= "a" * 64
 
 require File.expand_path("../test/dummy/config/environment", __dir__)
@@ -15,11 +15,16 @@ RSpec.configure do |config|
 
   config.include FactoryBot::Syntax::Methods
 
-  # ThecoreAuthCommonsCanCanCanConcern (included via after_initialize) overrides
-  # Ability#initialize to query Permission.joins(roles: :users). The permissions
-  # tables exist but are empty in tests, so the query returns no abilities.
-  # Re-override after all Rails initialization to grant :manage, :all.
+  # Explicitly load all factories from spec/factories — factory_bot_rails auto-discovery
+  # uses Rails.root (the dummy app) which doesn't know about the gem's spec/ directory.
   config.before(:suite) do
+    FactoryBot.find_definitions rescue nil
+    Dir[File.expand_path("factories/**/*.rb", __dir__)].sort.each { |f| require f }
+
+    # ThecoreAuthCommonsCanCanCanConcern (included via after_initialize) overrides
+    # Ability#initialize to query Permission.joins(roles: :users). The permissions
+    # tables exist but are empty in tests, so the query returns no abilities.
+    # Re-override after all Rails initialization to grant :manage, :all.
     Ability.define_method(:initialize) do |user|
       return unless user
       can :manage, :all

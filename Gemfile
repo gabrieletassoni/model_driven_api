@@ -16,7 +16,7 @@ gemspec
 
 gem "thecore_settings", "~> 3.0"
 gem "thecore_auth_commons", "~> 3.0"
-gem "thecore_backend_commons", "~> 3.0"
+gem "thecore_backend_commons", path: "../thecore_backend_commons"
 # https://github.com/jwt/ruby-jwt
 gem "jwt", "~> 2.4"
 
@@ -43,4 +43,5 @@ gem 'pagy', '~> 9.0'
 group :test do
   gem 'rspec-rails', '~> 7.0'
   gem 'factory_bot_rails', '~> 6.4'
+  gem 'actionmailer', '~> 7.2'
 end

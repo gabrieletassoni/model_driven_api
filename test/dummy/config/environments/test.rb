@@ -9,4 +9,6 @@ Rails.application.configure do
   config.action_controller.allow_forgery_protection = false
   config.active_support.deprecation = :stderr
   config.active_record.migration_error = :page_load
+  # Allow all hosts in tests — ActionDispatch::Integration::Session uses www.example.com by default.
+  config.hosts = []
 end

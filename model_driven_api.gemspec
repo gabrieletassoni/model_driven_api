@@ -27,7 +27,7 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency "thecore_backend_commons", "~> 3.0"
   # https://github.com/jwt/ruby-jwt
-  spec.add_dependency "jwt", "~> 2.4"
+  spec.add_dependency "jwt", "~> 3.0"
 
   # https://github.com/nebulab/simple_command
   spec.add_dependency "simple_command", "~> 1.0"

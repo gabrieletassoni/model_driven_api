@@ -44,7 +44,10 @@ module ApiExceptionManagement
         
         def api_error(status: 501, errors: [])
             # puts errors.full_messages if !Rails.env.production? && errors.respond_to?(:full_messages)
-            head status && return if errors.blank?
+            if errors.blank?
+              head status
+              return
+            end
             
             # For retrocompatibility, I try to send back only strings, as errors
             errors_response = if errors.respond_to?(:full_messages) 

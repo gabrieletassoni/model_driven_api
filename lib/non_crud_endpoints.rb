@@ -2,6 +2,24 @@ class NonCrudEndpoints
     attr_accessor :result
     cattr_accessor :definitions
     self.definitions = {}
+
+    # Registry of actions that do not require authentication.
+    # Populated by subclasses via `self.public_action :action_name`.
+    # Used by CustomActionDispatcher and ApplicationController to skip
+    # authenticate_request for these endpoints.
+    cattr_accessor :public_action_registry
+    self.public_action_registry = {}
+
+    def self.public_action(action_name)
+        self.public_action_registry[name] ||= []
+        self.public_action_registry[name] << action_name.to_sym
+    end
+
+    def self.public_action?(model_name, action_name)
+        registry = public_action_registry["Endpoints::#{model_name}"] || []
+        registry.include?(action_name.to_sym)
+    end
+
     # Add a validation method which will be inherited by all the instances, and automatically run before any method call
     def initialize(m, params)
         # Rails.logger.debug "Initializing NonCrudEndpoints"

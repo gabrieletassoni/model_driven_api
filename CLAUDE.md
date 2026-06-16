@@ -121,6 +121,18 @@ Place endpoint files in `app/models/endpoints/model_name.rb` in the host app.
 
 Custom action responses in v3 are plain JSON (not JSON:API envelopes) — the dispatcher serializes via `body.to_json(json_attrs)` before returning.
 
+**Public (unauthenticated) actions** — to declare that a `NonCrudEndpoints` action does not require a JWT token, call `public_action :action_name` in the class body:
+```ruby
+class Endpoints::MyModel < NonCrudEndpoints
+  public_action :my_public_action   # no token required for this action
+  self.desc 'MyModel', :my_public_action, { get: { ... } }
+  def my_public_action(params)
+    [{ result: "ok" }, 200]
+  end
+end
+```
+`ApplicationController#authenticate_request` checks `NonCrudEndpoints.public_action?(model, action)` and skips token validation for registered public actions. The `Endpoints::<Model>` class is force-loaded (via `constantize`) in `public_custom_action?` before the check so declarations are visible even on first request. CanCan authorization is also skipped for public actions. `params[:current_user_id]` is nil for these calls — do not call `User.find(params[:current_user_id])` in a public action.
+
 ### Concerns to include in host models
 
 | Concern | Include in | Purpose |
