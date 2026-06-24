@@ -13,7 +13,7 @@ class Api::V2::ApplicationController < ActionController::API
 
   # GET :controller/
   def index
-    authorize! :index, @model unless public_custom_action?
+    authorize! :index, @model unless custom_action?
 
     # Custom Action
     status, result, status_number = check_for_custom_action
@@ -53,7 +53,7 @@ class Api::V2::ApplicationController < ActionController::API
   end
 
   def show
-    authorize! :show, @record_id.presence || @model
+    authorize! :show, @record_id.presence || @model unless custom_action?
 
     # Custom Show Action
     status, result, status_number = check_for_custom_action
@@ -67,7 +67,7 @@ class Api::V2::ApplicationController < ActionController::API
   def create
     # Normal Create Action
     Rails.logger.debug("Creating a new record #{@record}")
-    authorize! :create, @record.presence || @model unless public_custom_action?
+    authorize! :create, @record.presence || @model unless custom_action?
     # Custom Action
     status, result, status_number = check_for_custom_action
     return render json: result, status: (status_number.presence || 200) if status == true
@@ -80,7 +80,7 @@ class Api::V2::ApplicationController < ActionController::API
   end
 
   def update
-    authorize! :update, @record.presence || @model
+    authorize! :update, @record.presence || @model unless custom_action?
 
     # Custom Action
     status, result, status_number = check_for_custom_action
@@ -105,7 +105,7 @@ class Api::V2::ApplicationController < ActionController::API
   end
 
   def destroy
-    authorize! :destroy, @record.presence || @model
+    authorize! :destroy, @record.presence || @model unless custom_action?
 
     # Custom Action
     status, result, status_number = check_for_custom_action
@@ -127,12 +127,18 @@ class Api::V2::ApplicationController < ActionController::API
 
   private
 
-  # Returns true if the current request is for a NonCrudEndpoints custom action
-  # that has been declared as public (no authentication required).
+  # Returns true for any custom action request (public or authenticated).
+  # Custom actions are self-contained and handle their own authorization logic;
+  # the generic CanCan model-level check is not applicable to them.
+  def custom_action?
+    params[:action_name].present?
+  end
+
+  # Returns true only for custom actions declared as public (no JWT required).
   # Forces autoloading of the Endpoints::<Model> class so the public_action_registry
   # is populated before authenticate_request checks it.
   def public_custom_action?
-    return false unless request.url.include?("/custom_action/")
+    return false unless custom_action?
     model_name = params[:ctrl].to_s.classify
     action_name = params[:action_name].to_s
     # Ensure the endpoint class is loaded so its public_action declarations are registered.

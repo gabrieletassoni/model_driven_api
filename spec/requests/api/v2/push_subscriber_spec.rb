@@ -144,6 +144,24 @@ RSpec.describe "API v2 PushSubscriber custom actions", type: :request do
            headers: { "Content-Type" => "application/json" }
       expect(response).to have_http_status(:unauthorized)
     end
+
+    context "when user is non-admin (no PushSubscriber CanCan permission)" do
+      around do |example|
+        # Temporarily remove the spec-wide `can :manage, :all` patch so the
+        # controller's CanCan check reflects real production abilities.
+        original_initialize = Ability.instance_method(:initialize)
+        Ability.define_method(:initialize) { |_user| nil }
+        example.run
+        Ability.define_method(:initialize, original_initialize)
+      end
+
+      it "returns 201 (subscribe must succeed regardless of CanCan model permissions)" do
+        post "/api/v2/push_subscribers/custom_action/subscribe",
+             params: subscription_params.to_json,
+             headers: headers.merge("Content-Type" => "application/json")
+        expect(response).to have_http_status(:created)
+      end
+    end
   end
 
   describe "POST /api/v2/push_subscribers/custom_action/send_push" do
