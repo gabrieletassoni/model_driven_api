@@ -140,6 +140,10 @@ end
 | `ModelDrivenApiApplicationRecord` | `ApplicationRecord` | Enables `ransackable_attributes` / `ransackable_associations` |
 | `ModelDrivenApiUser` | `User` | Adds `has_many :used_tokens`, default `json_attrs` |
 | `ModelDrivenApiRole` | `Role` | Adds default `json_attrs` |
+| `ModelDrivenApiPushSubscriber` | `PushSubscriber` | `json_attrs` includes `user: { only: [:id, :email, :name, :surname] }` |
+| `ModelDrivenApiPushMessage` | `PushMessage` | `json_attrs` includes `sender: { only: [:id, :email, :name, :surname] }` |
+
+All concerns are registered in `config/initializers/after_initialize_for_model_driven_api.rb` via `send(:include, ...)` inside `after_initialize`. New model concerns go in `lib/concerns/` following the `ModelDrivenApi<ModelName>` naming convention.
 
 ### JSON serialisation DSL (`json_attrs`)
 
