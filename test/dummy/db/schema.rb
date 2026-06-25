@@ -198,9 +198,11 @@ ActiveRecord::Schema[7.2].define(version: 2025_12_16_111217) do
     t.datetime "sent_at"
     t.datetime "received_at"
     t.datetime "read_at"
+    t.bigint "sender_user_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["push_subscriber_id"], name: "index_push_messages_on_push_subscriber_id"
+    t.index ["sender_user_id"], name: "index_push_messages_on_sender_user_id"
   end
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
@@ -214,4 +216,5 @@ ActiveRecord::Schema[7.2].define(version: 2025_12_16_111217) do
   add_foreign_key "role_users", "users"
   add_foreign_key "used_tokens", "users"
   add_foreign_key "push_messages", "push_subscribers"
+  add_foreign_key "push_messages", "users", column: "sender_user_id"
 end
