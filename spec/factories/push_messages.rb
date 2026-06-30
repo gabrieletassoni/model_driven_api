@@ -4,6 +4,7 @@ FactoryBot.define do
     sender { nil }
     title { "Test notification" }
     body { "Test body" }
+    message_type { "communication" }
     url { nil }
     icon { nil }
     sent_at { nil }

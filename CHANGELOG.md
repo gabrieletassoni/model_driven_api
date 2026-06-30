@@ -1,5 +1,14 @@
 ## [Unreleased]
 
+## [3.8.0] - 2026-06-30
+
+### Added
+- **`POST broadcast_push`** — new custom action on `Endpoints::PushSubscriber`; sends the same push notification to all active subscribers (`expired_at IS NULL`) in a single `insert_all` + one `PushDispatchJob` per subscriber (async). Accepts `title` (required), `body` (required), `message_type` (optional, default `"communication"`), `url`, `icon`, `current_user_id`. Response: `{ enqueued: N }`.
+- **`send_push` bulk mode** — `push_subscriber_ids` array parameter; creates messages via `insert_all` with `returning:` for performance and enqueues one `PushDispatchJob` per valid subscriber. Invalid/inactive IDs are returned in a `failed` array. Response: `{ created: [...], failed: [...] }`.
+
+### Fixed
+- **`send_push` and `acknowledge` serialization error** — `check_for_custom_action` was serializing the response body using `PushSubscriber.json_attrs` (which includes `user`), but both actions return a `PushMessage` instance (which has `sender`, not `user`), causing `NoMethodError: undefined method 'user' for an instance of PushMessage`. Fixed by pre-serializing responses with `message.as_json(PushMessage.json_attrs)`.
+
 ## [3.7.0] - 2026-06-16
 
 ### Changed

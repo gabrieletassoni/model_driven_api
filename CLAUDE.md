@@ -145,6 +145,18 @@ end
 
 All concerns are registered in `config/initializers/after_initialize_for_model_driven_api.rb` via `send(:include, ...)` inside `after_initialize`. New model concerns go in `lib/concerns/` following the `ModelDrivenApi<ModelName>` naming convention.
 
+### PushSubscriber custom endpoints (`app/models/endpoints/push_subscriber.rb`)
+
+| Endpoint | Description |
+|---|---|
+| `GET vapid_public_key` | Public — returns VAPID public key |
+| `POST subscribe` | Registers/updates a `PushSubscriber` for the current user |
+| `POST send_push` | Creates and dispatches push notification(s). Accepts `push_subscriber_id` (single, sync dispatch) or `push_subscriber_ids` array (bulk, async via `PushDispatchJob`). Bulk uses `insert_all` for performance and enqueues one `PushDispatchJob` per valid subscriber. Response: single → `PushMessage` JSON; bulk → `{ created: [...], failed: [...invalid_ids] }`. |
+| `POST broadcast_push` | Sends same push to **all** active subscribers (`expired_at IS NULL`). Uses `insert_all` + one `PushDispatchJob` per subscriber (async). Optional params: `message_type` (default `"communication"`), `url`, `icon`. `sender_user_id` set from `current_user_id`. Response: `{ enqueued: N }`. |
+| `POST acknowledge` | Marks a `PushMessage` as `received_at` / `read_at` |
+
+**Serialization note**: `send_push` and `acknowledge` pre-serialize the response with `PushMessage.json_attrs` (not `PushSubscriber.json_attrs`) to avoid `NoMethodError` on `user` — `PushMessage` has `sender`, not `user`.
+
 ### JSON serialisation DSL (`json_attrs`)
 
 Each model exposes `self.json_attrs` as a class-level hash with the standard Rails `as_json` keys: `:only`, `:except`, `:methods`, `:include`. The engine reads this in every v2 CRUD response. The v3 `SerializerFactory` reads `json_attrs[:only]` first, then falls back to `column_names - [:except]` if `only:` is not set. Clients can override the shape per-request via the `a` or `json_attrs` query parameter (v2 only).

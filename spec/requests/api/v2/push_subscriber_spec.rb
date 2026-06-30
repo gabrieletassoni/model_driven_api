@@ -164,7 +164,7 @@ RSpec.describe "API v2 PushSubscriber custom actions", type: :request do
     end
   end
 
-  describe "POST /api/v2/push_subscribers/custom_action/send_push" do
+  describe "POST /api/v2/push_subscribers/custom_action/send_push (single)" do
     let(:subscriber) { create(:push_subscriber, user: user) }
 
     before do
@@ -203,6 +203,133 @@ RSpec.describe "API v2 PushSubscriber custom actions", type: :request do
     end
   end
 
+  describe "POST /api/v2/push_subscribers/custom_action/send_push (bulk)" do
+    let(:subscriber1) { create(:push_subscriber, user: user) }
+    let(:subscriber2) { create(:push_subscriber, user: user) }
+
+    before do
+      allow(PushDispatchJob).to receive(:perform_later)
+    end
+
+    it "returns 201 with created and failed arrays" do
+      post "/api/v2/push_subscribers/custom_action/send_push",
+           params: { push_subscriber_ids: [subscriber1.id, subscriber2.id, 0], title: "Bulk", body: "Message" }.to_json,
+           headers: headers.merge("Content-Type" => "application/json")
+      expect(response).to have_http_status(:created)
+      json = JSON.parse(response.body)
+      expect(json["created"].length).to eq(2)
+      expect(json["failed"]).to eq([0])
+    end
+
+    it "creates a PushMessage for each valid subscriber" do
+      expect {
+        post "/api/v2/push_subscribers/custom_action/send_push",
+             params: { push_subscriber_ids: [subscriber1.id, subscriber2.id], title: "Bulk", body: "Message" }.to_json,
+             headers: headers.merge("Content-Type" => "application/json")
+      }.to change(PushMessage, :count).by(2)
+    end
+
+    it "enqueues a PushDispatchJob for each valid subscriber" do
+      post "/api/v2/push_subscribers/custom_action/send_push",
+           params: { push_subscriber_ids: [subscriber1.id, subscriber2.id], title: "Bulk", body: "Message" }.to_json,
+           headers: headers.merge("Content-Type" => "application/json")
+      expect(PushDispatchJob).to have_received(:perform_later).exactly(2).times
+    end
+
+    it "returns empty created and all ids in failed when no subscribers are active" do
+      post "/api/v2/push_subscribers/custom_action/send_push",
+           params: { push_subscriber_ids: [0, 99999], title: "Bulk", body: "Message" }.to_json,
+           headers: headers.merge("Content-Type" => "application/json")
+      expect(response).to have_http_status(:created)
+      json = JSON.parse(response.body)
+      expect(json["created"]).to be_empty
+      expect(json["failed"]).to match_array([0, 99999])
+    end
+
+    it "returns 422 when title is missing" do
+      post "/api/v2/push_subscribers/custom_action/send_push",
+           params: { push_subscriber_ids: [subscriber1.id], body: "Message" }.to_json,
+           headers: headers.merge("Content-Type" => "application/json")
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "returns 422 when body is missing" do
+      post "/api/v2/push_subscribers/custom_action/send_push",
+           params: { push_subscriber_ids: [subscriber1.id], title: "Bulk" }.to_json,
+           headers: headers.merge("Content-Type" => "application/json")
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+  end
+
+  describe "POST /api/v2/push_subscribers/custom_action/broadcast_push" do
+    let(:subscriber1) { create(:push_subscriber, user: user) }
+    let(:subscriber2) { create(:push_subscriber, user: user) }
+
+    before do
+      subscriber1
+      subscriber2
+      allow(PushDispatchJob).to receive(:perform_later)
+    end
+
+    it "returns 201 with enqueued count" do
+      post "/api/v2/push_subscribers/custom_action/broadcast_push",
+           params: { title: "Broadcast", body: "Message" }.to_json,
+           headers: headers.merge("Content-Type" => "application/json")
+      expect(response).to have_http_status(:created)
+      json = JSON.parse(response.body)
+      expect(json["enqueued"]).to eq(2)
+    end
+
+    it "creates a PushMessage for each active subscriber" do
+      expect {
+        post "/api/v2/push_subscribers/custom_action/broadcast_push",
+             params: { title: "Broadcast", body: "Message" }.to_json,
+             headers: headers.merge("Content-Type" => "application/json")
+      }.to change(PushMessage, :count).by(2)
+    end
+
+    it "enqueues a PushDispatchJob for each active subscriber" do
+      post "/api/v2/push_subscribers/custom_action/broadcast_push",
+           params: { title: "Broadcast", body: "Message" }.to_json,
+           headers: headers.merge("Content-Type" => "application/json")
+      expect(PushDispatchJob).to have_received(:perform_later).exactly(2).times
+    end
+
+    it "returns enqueued: 0 when no active subscribers exist" do
+      subscriber1.expire!
+      subscriber2.expire!
+      post "/api/v2/push_subscribers/custom_action/broadcast_push",
+           params: { title: "Broadcast", body: "Message" }.to_json,
+           headers: headers.merge("Content-Type" => "application/json")
+      expect(response).to have_http_status(:created)
+      json = JSON.parse(response.body)
+      expect(json["enqueued"]).to eq(0)
+    end
+
+    it "skips expired subscribers" do
+      subscriber1.expire!
+      post "/api/v2/push_subscribers/custom_action/broadcast_push",
+           params: { title: "Broadcast", body: "Message" }.to_json,
+           headers: headers.merge("Content-Type" => "application/json")
+      json = JSON.parse(response.body)
+      expect(json["enqueued"]).to eq(1)
+    end
+
+    it "returns 422 when title is missing" do
+      post "/api/v2/push_subscribers/custom_action/broadcast_push",
+           params: { body: "Message" }.to_json,
+           headers: headers.merge("Content-Type" => "application/json")
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "returns 422 when body is missing" do
+      post "/api/v2/push_subscribers/custom_action/broadcast_push",
+           params: { title: "Broadcast" }.to_json,
+           headers: headers.merge("Content-Type" => "application/json")
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+  end
+
   describe "POST /api/v2/push_subscribers/custom_action/acknowledge" do
     let(:subscriber) { create(:push_subscriber, user: user) }
     let(:message) { create(:push_message, push_subscriber: subscriber) }
@@ -228,6 +355,16 @@ RSpec.describe "API v2 PushSubscriber custom actions", type: :request do
            params: { push_message_id: 0, received: true }.to_json,
            headers: headers.merge("Content-Type" => "application/json")
       expect(response).to have_http_status(:not_found)
+    end
+
+    it "returns a serializable body using PushMessage json_attrs, not PushSubscriber's" do
+      post "/api/v2/push_subscribers/custom_action/acknowledge",
+           params: { push_message_id: message.id, received: true, read: true }.to_json,
+           headers: headers.merge("Content-Type" => "application/json")
+      expect(response).to have_http_status(:ok)
+      json = JSON.parse(response.body)
+      expect(json).to have_key("title")
+      expect(json).not_to have_key("user")
     end
   end
 end

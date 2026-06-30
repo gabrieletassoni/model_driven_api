@@ -199,6 +199,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_12_16_111217) do
     t.datetime "received_at"
     t.datetime "read_at"
     t.bigint "sender_user_id"
+    t.string "message_type", default: "communication", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["push_subscriber_id"], name: "index_push_messages_on_push_subscriber_id"
