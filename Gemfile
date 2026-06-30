@@ -16,7 +16,7 @@ gemspec
 
 gem "thecore_settings", "~> 3.0"
 gem "thecore_auth_commons", "~> 3.0"
-gem "thecore_backend_commons", "~> 3.0", path: "../thecore_backend_commons"
+gem "thecore_backend_commons", "~> 3.0"
 # https://github.com/nebulab/simple_command
 gem "simple_command", "~> 1.0"
 
