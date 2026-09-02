@@ -145,6 +145,24 @@ end
 
 All concerns are registered in `config/initializers/after_initialize_for_model_driven_api.rb` via `send(:include, ...)` inside `after_initialize`. New model concerns go in `lib/concerns/` following the `ModelDrivenApi<ModelName>` naming convention.
 
+### Default `json_attrs` for every model (`ModelDrivenApiDefaultJsonAttrs`, ADR 0001)
+
+Per `vendor/external/thecore/docs/adr/0001-application-record-defaults-over-generated-concerns.md` (host app), a model does **not** need a generated `Api::ModelName` concern just to get a working default API serialization shape. `lib/concerns/model_driven_api_default_json_attrs.rb` defines `ModelDrivenApiDefaultJsonAttrs` — an `ActiveSupport::Concern` whose `included do` block sets `self.json_attrs = { except: [] }` (all columns, no `methods`, no `include`d associations) via `cattr_accessor`, same as the named concerns above.
+
+It is registered once, in `config/initializers/default_json_attrs_registration.rb`, into `ThecoreBackendCommons::DefaultModuleRegistry`:
+
+```ruby
+ThecoreBackendCommons::DefaultModuleRegistry.register(ModelDrivenApiDefaultJsonAttrs)
+```
+
+with no `applies_to:` (defaults to every `ApplicationRecord` subclass). The registry `include`s it into each subclass from `ApplicationRecord.inherited`, at the moment the subclass is defined — installed from `config.to_prepare`, not `after_initialize`, so it is in place before eager loading (see the registry's own docs in `thecore_backend_commons`'s `CLAUDE.md`/`lib/thecore_backend_commons/default_module_registry.rb`).
+
+This composes safely with an explicit `Api::ModelName` concern (host-app convention) or with the named concerns above: `ApplicationRecord.inherited` fires *before* the subclass's own body executes, so the default is always applied first and the class body's later `include Api::ModelName` (or `include ModelDrivenApiUser`/`ModelDrivenApiRole`) always runs after — freely overriding, or (via `ModelDrivenApi.smart_merge`) merging on top of, the default's `{ except: [] }`, which is a no-op when merged (an empty array extended with a non-empty one is just the non-empty one). Models with an explicit concern are therefore unaffected; only a model with no concern at all keeps the bare default. Abstract/STI classes are excluded exactly as the registry itself guarantees (`apply_to` is a no-op for `klass.abstract_class?`, and an STI child inherits the module from its base rather than being re-included).
+
+**Temporary dependency note**: this required `ThecoreBackendCommons::DefaultModuleRegistry`, merged into `thecore_backend_commons`'s `release/3` at commit `776a92a` but not yet published as a RubyGems release. Until a real release picks it up, `Gemfile` pins `thecore_backend_commons` to that commit via a `git:` source (see the comment there) instead of `path:` — a prior attempt at a `path:` sibling reference was reverted (commit `2ee6046`) because it only resolves in a monorepo-style devcontainer where `thecore_backend_commons` is checked out as a sibling; CI checks out this repo alone. Remove the `git:`/`ref:` override once `thecore_backend_commons` publishes a version ≥ the one containing the registry.
+
+Covered by `spec/initializers/default_json_attrs_spec.rb` — default applied to a no-concern model (`RoleUser`), `instance_methods(false).include?(:json_attrs)`, an explicit-concern model (`Role`) unaffected, abstract-class exclusion, and both `/api/v2/info/schema` and `/api/v2/info/dsl` actually surfacing the default-only model (a previously untested path).
+
 ### PushSubscriber custom endpoints (`app/models/endpoints/push_subscriber.rb`)
 
 | Endpoint | Description |
