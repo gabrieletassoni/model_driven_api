@@ -16,14 +16,6 @@ gemspec
 
 gem "thecore_settings", "~> 3.0"
 gem "thecore_auth_commons", "~> 3.0"
-# TEMPORARY: thecore_backend_commons 3.5.0 (which contains DefaultModuleRegistry)
-# was just published to RubyGems but its index hasn't propagated the new version
-# yet (bundle install still resolves 3.4.1). Pin to the release/3 branch until
-# `bundle update thecore_backend_commons` picks up 3.5.0 for real, then remove
-# this override entirely -- the gemspec's own `~> 3.0` constraint needs no pin.
-gem "thecore_backend_commons", "~> 3.0",
-  git: "https://github.com/gabrieletassoni/thecore_backend_commons.git",
-  branch: "release/3"
 # https://github.com/nebulab/simple_command
 gem "simple_command", "~> 1.0"
 
