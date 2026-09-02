@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [3.9.0] - 2026-09-02
+
+### Added
+- **`ModelDrivenApiDefaultJsonAttrs`** (`lib/concerns/model_driven_api_default_json_attrs.rb`) — gives every `ApplicationRecord` subclass a default `json_attrs = { except: [] }` (all columns, no `methods`, no `include`) with no explicit `Api::ModelName` concern required, registered into `ThecoreBackendCommons::DefaultModuleRegistry` (requires `thecore_backend_commons ~> 3.5`). A model with its own `Api::ModelName` concern is unaffected — the explicit `include` always runs after and overrides the default. See CLAUDE.md for the `instance_methods(false)`/`/info/schema`+`/info/dsl` rationale.
+
 ## [3.8.0] - 2026-06-30
 
 ### Added
