@@ -16,7 +16,17 @@ gemspec
 
 gem "thecore_settings", "~> 3.0"
 gem "thecore_auth_commons", "~> 3.0"
-gem "thecore_backend_commons", "~> 3.0"
+# TEMPORARY (issue #5): ThecoreBackendCommons::DefaultModuleRegistry (needed
+# by this branch) is merged into thecore_backend_commons's `release/3` at
+# commit 776a92a but has not been version-bumped/published to RubyGems yet --
+# the latest published gem version predates the merge. Pin to that commit via
+# a git source (NOT `path:` -- see commit 2ee6046, "path mode breaks CI":
+# a path reference to a sibling checkout only works in this monorepo-style
+# devcontainer, CI checks out this repo alone) until a real
+# thecore_backend_commons release picks up the registry.
+gem "thecore_backend_commons", "~> 3.0",
+  git: "https://github.com/gabrieletassoni/thecore_backend_commons.git",
+  ref: "776a92a"
 # https://github.com/nebulab/simple_command
 gem "simple_command", "~> 1.0"
 
