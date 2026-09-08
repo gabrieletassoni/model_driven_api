@@ -1,3 +1,5 @@
+require "active_support/core_ext/class/attribute_accessors"
+
 class NonCrudEndpoints
     attr_accessor :result
     cattr_accessor :definitions

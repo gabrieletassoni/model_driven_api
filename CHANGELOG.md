@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+## [3.9.1] - 2026-09-08
+
+### Fixed
+- **`lib/non_crud_endpoints.rb` require order** — `cattr_accessor :definitions` ran before anything guaranteed ActiveSupport's `Class` core-ext was loaded, raising `NoMethodError: undefined method 'cattr_accessor'` under the plain minitest boot path (masked under rspec, which boots the full dummy Rails app first). Now requires `active_support/core_ext/class/attribute_accessors` directly.
+- Pinned `json < 3.0` in the dev `Gemfile` — json 3.0+ turns ActiveSupport's `quirks_mode:` `JSON.generate` option into a hard `ArgumentError` under Rails 7.2 (test/dev tooling only, does not affect the published gem).
+
 ## [3.9.0] - 2026-09-02
 
 ### Added
