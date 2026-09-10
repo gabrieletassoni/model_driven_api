@@ -9,6 +9,10 @@ module ApiExceptionManagement
             rescue_from ActionController::RoutingError, with: :not_found!
             rescue_from ActiveModel::ForbiddenAttributesError, with: :fivehundred!
             rescue_from ActiveRecord::RecordInvalid, with: :invalid!
+            # A destroy blocked by dependent: :restrict_with_error or a before_destroy guard
+            # (e.g. Task's time_tables-present guard, docs/adr/0010, host repo) raises this via
+            # #destroy! — reuse invalid! since both exceptions expose the same .record interface.
+            rescue_from ActiveRecord::RecordNotDestroyed, with: :invalid!
             rescue_from ActiveRecord::RecordNotFound, with: :not_found!
             rescue_from ActiveRecord::RecordNotUnique, with: :invalid!
             # Rescue Stale Object in Optimistick locking with stale!

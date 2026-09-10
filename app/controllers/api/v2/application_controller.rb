@@ -112,7 +112,9 @@ class Api::V2::ApplicationController < ActionController::API
     return render json: result, status: (status_number.presence || 200) if status == true
 
     # Normal Destroy Action
-    return api_error(status: 500) unless @record.destroy
+    # A validation/before_destroy guard (e.g. dependent: :restrict_with_error) blocking this
+    # destroy populates @record.errors — surface it as a 422, not a bodyless 500.
+    return api_error(status: 422, errors: @record.errors) unless @record.destroy
     head :ok
   end
 
