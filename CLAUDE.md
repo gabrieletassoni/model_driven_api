@@ -140,6 +140,40 @@ end
 | `ModelDrivenApiApplicationRecord` | `ApplicationRecord` | Enables `ransackable_attributes` / `ransackable_associations` |
 | `ModelDrivenApiUser` | `User` | Adds `has_many :used_tokens`, default `json_attrs` |
 | `ModelDrivenApiRole` | `Role` | Adds default `json_attrs` |
+| `ModelDrivenApiPushSubscriber` | `PushSubscriber` | `json_attrs` includes `user: { only: [:id, :email, :name, :surname] }` |
+| `ModelDrivenApiPushMessage` | `PushMessage` | `json_attrs` includes `sender: { only: [:id, :email, :name, :surname] }` |
+
+All concerns are registered in `config/initializers/after_initialize_for_model_driven_api.rb` via `send(:include, ...)` inside `after_initialize`. New model concerns go in `lib/concerns/` following the `ModelDrivenApi<ModelName>` naming convention.
+
+### Default `json_attrs` for every model (`ModelDrivenApiDefaultJsonAttrs`, ADR 0001)
+
+Per `vendor/external/thecore/docs/adr/0001-application-record-defaults-over-generated-concerns.md` (host app), a model does **not** need a generated `Api::ModelName` concern just to get a working default API serialization shape. `lib/concerns/model_driven_api_default_json_attrs.rb` defines `ModelDrivenApiDefaultJsonAttrs` — an `ActiveSupport::Concern` whose `included do` block sets `self.json_attrs = { except: [] }` (all columns, no `methods`, no `include`d associations) via `cattr_accessor`, same as the named concerns above.
+
+It is registered once, in `config/initializers/default_json_attrs_registration.rb`, into `ThecoreBackendCommons::DefaultModuleRegistry`:
+
+```ruby
+ThecoreBackendCommons::DefaultModuleRegistry.register(ModelDrivenApiDefaultJsonAttrs)
+```
+
+with no `applies_to:` (defaults to every `ApplicationRecord` subclass). The registry `include`s it into each subclass from `ApplicationRecord.inherited`, at the moment the subclass is defined — installed from `config.to_prepare`, not `after_initialize`, so it is in place before eager loading (see the registry's own docs in `thecore_backend_commons`'s `CLAUDE.md`/`lib/thecore_backend_commons/default_module_registry.rb`).
+
+This composes safely with an explicit `Api::ModelName` concern (host-app convention) or with the named concerns above: `ApplicationRecord.inherited` fires *before* the subclass's own body executes, so the default is always applied first and the class body's later `include Api::ModelName` (or `include ModelDrivenApiUser`/`ModelDrivenApiRole`) always runs after — freely overriding, or (via `ModelDrivenApi.smart_merge`) merging on top of, the default's `{ except: [] }`, which is a no-op when merged (an empty array extended with a non-empty one is just the non-empty one). Models with an explicit concern are therefore unaffected; only a model with no concern at all keeps the bare default. Abstract/STI classes are excluded exactly as the registry itself guarantees (`apply_to` is a no-op for `klass.abstract_class?`, and an STI child inherits the module from its base rather than being re-included).
+
+This required `ThecoreBackendCommons::DefaultModuleRegistry`, which shipped in `thecore_backend_commons` 3.5.0 — the gemspec's existing `~> 3.0` constraint resolves it normally from RubyGems, no pin needed (a temporary `git:`-sourced pin lived in `Gemfile` for a while before 3.5.0 was published and its RubyGems index propagated; it's gone now).
+
+Covered by `spec/initializers/default_json_attrs_spec.rb` — default applied to a no-concern model (`RoleUser`), `instance_methods(false).include?(:json_attrs)`, an explicit-concern model (`Role`) unaffected, abstract-class exclusion, and both `/api/v2/info/schema` and `/api/v2/info/dsl` actually surfacing the default-only model (a previously untested path).
+
+### PushSubscriber custom endpoints (`app/models/endpoints/push_subscriber.rb`)
+
+| Endpoint | Description |
+|---|---|
+| `GET vapid_public_key` | Public — returns VAPID public key |
+| `POST subscribe` | Registers/updates a `PushSubscriber` for the current user |
+| `POST send_push` | Creates and dispatches push notification(s). Accepts `push_subscriber_id` (single, sync dispatch) or `push_subscriber_ids` array (bulk, async via `PushDispatchJob`). Bulk uses `insert_all` for performance and enqueues one `PushDispatchJob` per valid subscriber. Response: single → `PushMessage` JSON; bulk → `{ created: [...], failed: [...invalid_ids] }`. |
+| `POST broadcast_push` | Sends same push to **all** active subscribers (`expired_at IS NULL`). Uses `insert_all` + one `PushDispatchJob` per subscriber (async). Optional params: `message_type` (default `"communication"`), `url`, `icon`. `sender_user_id` set from `current_user_id`. Response: `{ enqueued: N }`. |
+| `POST acknowledge` | Marks a `PushMessage` as `received_at` / `read_at` |
+
+**Serialization note**: `send_push` and `acknowledge` pre-serialize the response with `PushMessage.json_attrs` (not `PushSubscriber.json_attrs`) to avoid `NoMethodError` on `user` — `PushMessage` has `sender`, not `user`.
 
 ### JSON serialisation DSL (`json_attrs`)
 
@@ -234,6 +268,7 @@ DELETE /api/v3/*path/:id               → CRUD destroy (204 No Content)
 - The `Content-Range` header is always set on v2 index responses; frontends that use react-admin or similar expect it.
 - The `application/vnd.api+json` MIME type parameter parser is registered with key `:json_api` (Symbol) in `ActionDispatch::Request.parameter_parsers` — not with a `Mime::Type` object (the hash uses Symbol keys, not MIME type objects).
 - `ApiExceptionManagement` rescue_from handlers are **production-only**. In test/development, unhandled exceptions propagate as 500s without an error body.
+- **A blocked destroy (e.g. `dependent: :restrict_with_error` or a `before_destroy` guard) surfaces as a 422 with the record's error messages, not a bare 500** — `ApiExceptionManagement` registers `rescue_from ActiveRecord::RecordNotDestroyed, with: :invalid!` (reusing `RecordInvalid`'s handler, since both exceptions expose the same `.record` interface) for v3's `destroy!`, and v2's `destroy` action passes `@record.errors` into `api_error(status: 422, ...)` on a failed non-bang `destroy`. Same production-only gating as every other `rescue_from` in this concern applies to the v3/`RecordNotDestroyed` path; v2's fix is a plain action-body change and is not gated.
 - **`SerializerFactory` caches by class name** — once `Api::V3::RoleSerializer` (or any `<Model>Serializer`) is set in the `Api::V3` namespace it is never regenerated. Changes to `json_attrs` at runtime are not reflected until the process restarts.
 - **`SerializerFactory` uses `send`, not `public_send`, for `methods:`** — `thecore_backend_commons` injects private methods (`assets_paths`, `rich_content_html`) into every model. Using `public_send` raises `NoMethodError: private method 'assets_paths' called`. This mirrors Rails `as_json` behaviour.
 - **`append_migrations` uses `==`, not `.match`** — the guard in `engine.rb` compares `app.root.to_s == root.to_s`. A substring `.match` would cause the dummy app (a subdirectory of the engine) to falsely match the engine root and skip appending the gem's own migrations.

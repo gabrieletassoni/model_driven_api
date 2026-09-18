@@ -2,7 +2,7 @@ class Api::V3::ApplicationController < Api::V2::ApplicationController
   include Pagy::Backend
 
   def index
-    authorize! :index, @model unless public_custom_action?
+    authorize! :index, @model unless custom_action?
 
     status, result, status_number = check_for_custom_action
     return render json: result, status: (status_number.presence || 200) if status == true
@@ -18,7 +18,7 @@ class Api::V3::ApplicationController < Api::V2::ApplicationController
   end
 
   def show
-    authorize! :show, @record
+    authorize! :show, @record unless custom_action?
 
     status, result, status_number = check_for_custom_action
     return render json: result, status: (status_number.presence || 200) if status == true
@@ -28,7 +28,7 @@ class Api::V3::ApplicationController < Api::V2::ApplicationController
   end
 
   def create
-    authorize! :create, @model
+    authorize! :create, @model unless custom_action?
 
     status, result, status_number = check_for_custom_action
     return render json: result, status: (status_number.presence || 200) if status == true
@@ -40,7 +40,7 @@ class Api::V3::ApplicationController < Api::V2::ApplicationController
   end
 
   def update
-    authorize! :update, @record
+    authorize! :update, @record unless custom_action?
 
     status, result, status_number = check_for_custom_action
     return render json: result, status: (status_number.presence || 200) if status == true
@@ -53,7 +53,7 @@ class Api::V3::ApplicationController < Api::V2::ApplicationController
   alias_method :patch, :update
 
   def destroy
-    authorize! :destroy, @record
+    authorize! :destroy, @record unless custom_action?
 
     status, result, status_number = check_for_custom_action
     return render json: result, status: (status_number.presence || 200) if status == true

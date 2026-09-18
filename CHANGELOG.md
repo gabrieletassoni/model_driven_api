@@ -1,5 +1,25 @@
 ## [Unreleased]
 
+## [3.9.1] - 2026-09-08
+
+### Fixed
+- **`lib/non_crud_endpoints.rb` require order** — `cattr_accessor :definitions` ran before anything guaranteed ActiveSupport's `Class` core-ext was loaded, raising `NoMethodError: undefined method 'cattr_accessor'` under the plain minitest boot path (masked under rspec, which boots the full dummy Rails app first). Now requires `active_support/core_ext/class/attribute_accessors` directly.
+- Pinned `json < 3.0` in the dev `Gemfile` — json 3.0+ turns ActiveSupport's `quirks_mode:` `JSON.generate` option into a hard `ArgumentError` under Rails 7.2 (test/dev tooling only, does not affect the published gem).
+
+## [3.9.0] - 2026-09-02
+
+### Added
+- **`ModelDrivenApiDefaultJsonAttrs`** (`lib/concerns/model_driven_api_default_json_attrs.rb`) — gives every `ApplicationRecord` subclass a default `json_attrs = { except: [] }` (all columns, no `methods`, no `include`) with no explicit `Api::ModelName` concern required, registered into `ThecoreBackendCommons::DefaultModuleRegistry` (requires `thecore_backend_commons ~> 3.5`). A model with its own `Api::ModelName` concern is unaffected — the explicit `include` always runs after and overrides the default. See CLAUDE.md for the `instance_methods(false)`/`/info/schema`+`/info/dsl` rationale.
+
+## [3.8.0] - 2026-06-30
+
+### Added
+- **`POST broadcast_push`** — new custom action on `Endpoints::PushSubscriber`; sends the same push notification to all active subscribers (`expired_at IS NULL`) in a single `insert_all` + one `PushDispatchJob` per subscriber (async). Accepts `title` (required), `body` (required), `message_type` (optional, default `"communication"`), `url`, `icon`, `current_user_id`. Response: `{ enqueued: N }`.
+- **`send_push` bulk mode** — `push_subscriber_ids` array parameter; creates messages via `insert_all` with `returning:` for performance and enqueues one `PushDispatchJob` per valid subscriber. Invalid/inactive IDs are returned in a `failed` array. Response: `{ created: [...], failed: [...] }`.
+
+### Fixed
+- **`send_push` and `acknowledge` serialization error** — `check_for_custom_action` was serializing the response body using `PushSubscriber.json_attrs` (which includes `user`), but both actions return a `PushMessage` instance (which has `sender`, not `user`), causing `NoMethodError: undefined method 'user' for an instance of PushMessage`. Fixed by pre-serializing responses with `message.as_json(PushMessage.json_attrs)`.
+
 ## [3.7.0] - 2026-06-16
 
 ### Changed

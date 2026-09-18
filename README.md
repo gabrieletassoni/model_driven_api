@@ -449,6 +449,22 @@ When composing `json_attrs` across multiple concerns, use `ModelDrivenApi.smart_
 self.json_attrs = ModelDrivenApi.smart_merge((json_attrs || {}), { only: [:id, :name] })
 ```
 
+### Default `json_attrs` — no `Api::ModelName` concern required
+
+A model doesn't need an explicit `Api::ModelName` concern just to get a working API shape.
+`ModelDrivenApiDefaultJsonAttrs` is registered into
+[`ThecoreBackendCommons::DefaultModuleRegistry`](../thecore_backend_commons/README.md#defaultmoduleregistry--shared-applicationrecordinherited-hook)
+and automatically `include`d into every `ApplicationRecord` subclass as it's defined, setting
+`self.json_attrs = { except: [] }` (every column, no `methods`, no sideloaded `include`) — the
+simplest safe default. A model with its own `Api::ModelName` concern (or `ModelDrivenApiUser`/
+`ModelDrivenApiRole`) is unaffected: that concern's `include` always runs after the default and
+freely overrides or merges on top of it via `ModelDrivenApi.smart_merge`. Only a model with no
+concern at all keeps the bare default.
+
+**Temporary dependency note**: this currently requires `thecore_backend_commons` from a Gemfile
+`git:` pin to its `release/3` branch, since the RubyGems release hasn't caught up with the
+registry yet — see this repo's `CLAUDE.md` for the exact commit/removal condition.
+
 ---
 
 ## Raw SQL endpoint
