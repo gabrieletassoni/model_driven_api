@@ -39,7 +39,6 @@ RSpec.describe ApiExceptionManagement do
       "AuthenticateUser::AccessDenied" => [-> { AuthenticateUser::AccessDenied.new }, :unauthenticated!],
       "CanCan::AccessDenied" => [-> { CanCan::AccessDenied.new }, :unauthorized!],
       "ActiveRecord::RecordNotFound" => [-> { ActiveRecord::RecordNotFound.new }, :not_found!],
-      "NoMethodError" => [-> { NoMethodError.new("x") }, :not_found!],
       "ActiveRecord::StaleObjectError" => [-> { ActiveRecord::StaleObjectError.new }, :stale!]
     }.each do |name, (build, expected)|
       it "routes #{name} to #{expected}, not the StandardError catch-all" do
@@ -64,6 +63,13 @@ RSpec.describe ApiExceptionManagement do
 
       expect(rendered[:status]).to eq(501)
       expect(rendered[:json][:error]).to eq("verb not allowed")
+    end
+
+    # A NoMethodError is a code bug, not a missing resource: answering 404 would disguise it
+    # as "not found". It was mapped to not_found!, but that mapping was dead code while the
+    # catch-all shadowed it (so production always answered 500); keep 500.
+    it "routes NoMethodError to fivehundred! (a code bug is not a missing resource)" do
+      expect(selected_handler(NoMethodError.new("undefined method"))).to eq(:fivehundred!)
     end
 
     it "still routes any other StandardError to fivehundred!" do

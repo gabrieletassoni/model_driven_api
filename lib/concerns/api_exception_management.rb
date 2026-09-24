@@ -9,7 +9,6 @@ module ApiExceptionManagement
             # AccessDenied (wrong login credentials), RecordNotFound, RecordInvalid, CanCan
             # denial... answered 500. Covered by spec/lib/concerns/api_exception_management_spec.rb.
             rescue_from StandardError, with: :fivehundred!
-            rescue_from NoMethodError, with: :not_found!
             rescue_from CanCan::AccessDenied, with: :unauthorized!
             rescue_from AuthenticateUser::AccessDenied, with: :unauthenticated!
             rescue_from ActionController::RoutingError, with: :not_found!

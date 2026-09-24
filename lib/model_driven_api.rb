@@ -28,6 +28,14 @@ require "api/v3/serializer_factory"
 module ModelDrivenApi
   UTC_ZONE_NAMES = %w[UTC Etc/UTC].freeze
 
+  # The host app's deployed version: the `version` file in its root (Thecore release convention —
+  # CI builds and deploys when it changes; the image is `ADD . /app`, so it ships in Rails.root).
+  # nil when the app has no such file. Served by GET /api/v2|v3/info/version.
+  def self.app_version
+    file = Rails.root.join("version")
+    file.file? ? file.read.strip.presence : nil
+  end
+
   # Raises unless the app is UTC-only: +time_zone+ is config.time_zone, +db_zone+ is
   # config.active_record.default_timezone (nil = Rails' default, :utc). Called at boot by
   # ModelDrivenApi::Engine's :enforce_utc_time_zone initializer.
