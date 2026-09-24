@@ -179,7 +179,7 @@ Covered by `spec/initializers/default_json_attrs_spec.rb` — default applied to
 
 Each model exposes `self.json_attrs` as a class-level hash with the standard Rails `as_json` keys: `:only`, `:except`, `:methods`, `:include`. The engine reads this in every v2 CRUD response. The v3 `SerializerFactory` reads `json_attrs[:only]` first, then falls back to `column_names - [:except]` if `only:` is not set. Clients can override the shape per-request via the `a` or `json_attrs` query parameter (v2 only).
 
-Use `ModelDrivenApi.smart_merge(existing, additions)` when composing `json_attrs` across concerns — it does a deep merge that extends arrays rather than replacing them.
+Use `ModelDrivenApi.smart_merge(existing, additions)` when composing `json_attrs` across concerns — it does a deep merge that extends arrays rather than replacing them. Since 3.11.3 it delegates to `ThecoreBackendCommons.smart_merge` (thecore_backend_commons >= 3.8), where the implementation now lives so lower-layer gems (thecore_backend_commons itself, thecore_ui_rails_admin) can use it without referencing this gem; in those gems call `ThecoreBackendCommons.smart_merge` directly.
 
 ### JWT / token management (`lib/json_web_token.rb`)
 

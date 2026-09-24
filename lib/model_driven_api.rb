@@ -50,11 +50,10 @@ module ModelDrivenApi
                          "(got #{db_zone.inspect})."
   end
 
+  # Kept for the many existing callers (host apps, mytask, ...): the implementation lives in
+  # thecore_backend_commons (ThecoreBackendCommons.smart_merge), which this gem depends on, so
+  # that lower-layer gems can compose json_attrs without referencing this gem.
   def self.smart_merge src, dest
-      src.deeper_merge! dest, {
-          extend_existing_arrays: true, 
-          merge_hash_arrays: true
-      }
-      src
+    ThecoreBackendCommons.smart_merge(src, dest)
   end
 end
