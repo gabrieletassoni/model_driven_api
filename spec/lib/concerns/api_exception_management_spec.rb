@@ -18,6 +18,59 @@ RSpec.describe ApiExceptionManagement do
     end
   end
 
+  # Registration alone proves nothing about dispatch: Rails tries rescue_from handlers from
+  # the LAST declared to the first, so a catch-all StandardError declared after the specific
+  # handlers used to shadow all of them — in production every AccessDenied, RecordNotFound,
+  # RecordInvalid... answered 500 (e.g. POST /authenticate with wrong credentials). This
+  # asserts which handler Rails actually selects for each exception.
+  describe "rescue_from dispatch precedence (Rails.env.production?)" do
+    let(:controller) do
+      allow(Rails.env).to receive(:production?).and_return(true)
+      Class.new(ActionController::API) { include ApiExceptionManagement }.new
+    end
+
+    def selected_handler(exception)
+      controller.handler_for_rescue(exception)&.name
+    end
+
+    let(:record) { Role.new }
+
+    {
+      "AuthenticateUser::AccessDenied" => [-> { AuthenticateUser::AccessDenied.new }, :unauthenticated!],
+      "CanCan::AccessDenied" => [-> { CanCan::AccessDenied.new }, :unauthorized!],
+      "ActiveRecord::RecordNotFound" => [-> { ActiveRecord::RecordNotFound.new }, :not_found!],
+      "NoMethodError" => [-> { NoMethodError.new("x") }, :not_found!],
+      "ActiveRecord::StaleObjectError" => [-> { ActiveRecord::StaleObjectError.new }, :stale!]
+    }.each do |name, (build, expected)|
+      it "routes #{name} to #{expected}, not the StandardError catch-all" do
+        expect(selected_handler(build.call)).to eq(expected)
+      end
+    end
+
+    it "routes RecordInvalid and RecordNotDestroyed to invalid!" do
+      expect(selected_handler(ActiveRecord::RecordInvalid.new(record))).to eq(:invalid!)
+      expect(selected_handler(ActiveRecord::RecordNotDestroyed.new("blocked", record))).to eq(:invalid!)
+    end
+
+    # Unreachable while the catch-all shadowed it; it used to point straight at api_error,
+    # which takes keywords only, so the handler itself raised ArgumentError when reached.
+    it "handles EndpointValidationError without the handler itself crashing" do
+      exception = EndpointValidationError.new("verb not allowed")
+      expect(selected_handler(exception)).to eq(:endpoint_invalid!)
+
+      rendered = nil
+      controller.define_singleton_method(:render) { |**opts| rendered = opts }
+      controller.handler_for_rescue(exception).call(exception)
+
+      expect(rendered[:status]).to eq(501)
+      expect(rendered[:json][:error]).to eq("verb not allowed")
+    end
+
+    it "still routes any other StandardError to fivehundred!" do
+      expect(selected_handler(RuntimeError.new("boom"))).to eq(:fivehundred!)
+    end
+  end
+
   # invalid! itself is defined unconditionally (only the rescue_from line above is
   # production-gated), so its behaviour can be exercised directly in any environment.
   describe "#invalid! (the handler shared by RecordInvalid and RecordNotDestroyed)" do

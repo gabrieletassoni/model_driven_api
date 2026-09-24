@@ -3,6 +3,12 @@ module ApiExceptionManagement
     
     included do
         if Rails.env.production?
+            # ORDER MATTERS: Rails tries rescue_from handlers from the LAST declared to the
+            # first, so the StandardError catch-all must be declared FIRST. Declared last (as it
+            # was until 3.11.0) it shadowed every specific handler below: in production every
+            # AccessDenied (wrong login credentials), RecordNotFound, RecordInvalid, CanCan
+            # denial... answered 500. Covered by spec/lib/concerns/api_exception_management_spec.rb.
+            rescue_from StandardError, with: :fivehundred!
             rescue_from NoMethodError, with: :not_found!
             rescue_from CanCan::AccessDenied, with: :unauthorized!
             rescue_from AuthenticateUser::AccessDenied, with: :unauthenticated!
@@ -17,8 +23,12 @@ module ApiExceptionManagement
             rescue_from ActiveRecord::RecordNotUnique, with: :invalid!
             # Rescue Stale Object in Optimistick locking with stale!
             rescue_from ActiveRecord::StaleObjectError, with: :stale!
-            rescue_from EndpointValidationError, with: :api_error
-            rescue_from StandardError, with: :fivehundred!
+            rescue_from EndpointValidationError, with: :endpoint_invalid!
+        end
+
+        # api_error takes keywords only, so it can't be a rescue_from handler itself.
+        def endpoint_invalid! exception = EndpointValidationError.new
+            return api_error status: 501, errors: exception.message
         end
 
         def stale! exception = StandardError.new
