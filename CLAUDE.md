@@ -24,6 +24,8 @@ bundle exec standardrb
 
 `pagy` is explicitly `require`d here (alongside `kaminari`). Pagy is not auto-loaded by Bundler because it is needed the moment `Api::V3::ApplicationController` class body is evaluated — before eager loading runs. Removing `require "pagy"` from this file causes `NameError: uninitialized constant Pagy` on any rake task or server boot that loads the application.
 
+`jsonapi/serializer` is required here for the same reason: a host app gets it only transitively, so `Bundler.require` never loads it, and without the explicit require every `/api/v3` request in a host answered 500 `uninitialized constant Api::V3::SerializerFactory::JSONAPI` (until 3.11.4). The dummy app's Gemfile lists it directly, which auto-requires it and hid the bug in this gem's own specs. `spec/lib/self_contained_require_spec.rb` loads the gem in a fresh process, as a host does, and asserts its runtime dependencies are defined — add any new runtime dependency's constant there.
+
 ### Controllers (`app/controllers/api/v2/`)
 
 | File | Role |

@@ -7,6 +7,10 @@ require 'jwt'
 require 'json_web_token'
 require "kaminari"
 require "pagy"
+# jsonapi-serializer backs every /api/v3 response (Api::V3::SerializerFactory). A host gets it
+# only transitively, so Bundler.require never loads it: without this require every v3 request
+# answered 500 "uninitialized constant Api::V3::SerializerFactory::JSONAPI".
+require "jsonapi/serializer"
 # require "multi_json"
 require "simple_command"
 
