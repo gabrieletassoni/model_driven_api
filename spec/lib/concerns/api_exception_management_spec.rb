@@ -53,6 +53,23 @@ RSpec.describe ApiExceptionManagement do
 
     # Unreachable while the catch-all shadowed it; it used to point straight at api_error,
     # which takes keywords only, so the handler itself raised ArgumentError when reached.
+    # It was routed to invalid!, which reads exception.record: RecordNotUnique has none, so
+    # the handler itself raised NoMethodError and every unique-index violation answered 500.
+    it "handles RecordNotUnique with 422, without leaking the database error" do
+      exception = ActiveRecord::RecordNotUnique.new(
+        'PG::UniqueViolation: ERROR:  duplicate key value violates unique constraint "index_roles_on_name"'
+      )
+      expect(selected_handler(exception)).to eq(:not_unique!)
+
+      rendered = nil
+      controller.define_singleton_method(:render) { |**opts| rendered = opts }
+      controller.handler_for_rescue(exception).call(exception)
+
+      expect(rendered[:status]).to eq(422)
+      expect(rendered[:json][:error]).to be_present
+      expect(rendered[:json][:error]).not_to include("PG::", "index_roles_on_name")
+    end
+
     it "handles EndpointValidationError without the handler itself crashing" do
       exception = EndpointValidationError.new("verb not allowed")
       expect(selected_handler(exception)).to eq(:endpoint_invalid!)

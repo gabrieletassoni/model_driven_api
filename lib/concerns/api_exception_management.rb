@@ -19,7 +19,9 @@ module ApiExceptionManagement
             # #destroy! — reuse invalid! since both exceptions expose the same .record interface.
             rescue_from ActiveRecord::RecordNotDestroyed, with: :invalid!
             rescue_from ActiveRecord::RecordNotFound, with: :not_found!
-            rescue_from ActiveRecord::RecordNotUnique, with: :invalid!
+            # Not invalid!: RecordNotUnique carries no .record, so invalid! itself raised and
+            # every unique-index violation answered 500.
+            rescue_from ActiveRecord::RecordNotUnique, with: :not_unique!
             # Rescue Stale Object in Optimistick locking with stale!
             rescue_from ActiveRecord::StaleObjectError, with: :stale!
             rescue_from EndpointValidationError, with: :endpoint_invalid!
@@ -51,6 +53,13 @@ module ApiExceptionManagement
             return api_error status: 422, errors: exception.record.errors 
         end
         
+        # The database message names tables, columns and index definitions: log it, don't
+        # send it back.
+        def not_unique! exception = ActiveRecord::RecordNotUnique.new
+            Rails.logger.warn("RecordNotUnique: #{exception.message}")
+            return api_error status: 422, errors: "A record with the same unique values already exists"
+        end
+
         def fivehundred! exception = StandardError.new
             return api_error status: 500, errors: exception.message
         end
