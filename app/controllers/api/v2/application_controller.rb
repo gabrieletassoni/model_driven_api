@@ -75,8 +75,7 @@ class Api::V2::ApplicationController < ActionController::API
     # TODO: Remove it
     # @record.user_id = current_user.id if @model.column_names.include? "user_id"
     @record = @model.new(@body)
-    @record.save!
-    render json: @record.to_json(json_attrs), status: 201
+    create_once(@record) { render json: @record.to_json(json_attrs), status: 201 }
   end
 
   def update
@@ -208,6 +207,46 @@ class Api::V2::ApplicationController < ActionController::API
     # @record = @model.column_names.include?("user_id") ? @model.where(id: (record_id.presence || @record_id.presence || params[:id]), user_id: current_user.id).first : @model.find((@record_id.presence || params[:id]))
     @record = @model.find((@record_id.presence || params[:id]))
     return not_found! if @record.blank?
+  end
+
+  # A model may declare `self.creation_key`: the columns identifying a record its client
+  # generated. A create whose key matches an existing record is a repeat of a creation that
+  # already happened (a client resending after a lost response), so the caller gets that
+  # record back instead of a copy.
+  def existing_by_creation_key(record)
+    return unless @model.respond_to?(:creation_key)
+
+    key = @model.creation_key.index_with { |column| record[column] }
+    return if key.values.any?(&:nil?)
+
+    @model.find_by(key)
+  end
+
+  # Saves +record+ and yields to render it, unless its creation key matches an existing
+  # record, which is rendered instead (render_existing). Shared by v2 and v3, which differ
+  # only in how they render.
+  def create_once(record)
+    existing = existing_by_creation_key(record)
+    return render_existing(existing) if existing
+
+    # In its own savepoint, so a unique-index violation leaves any enclosing transaction
+    # usable for the lookup that follows it.
+    @model.transaction(requires_new: true) { record.save! }
+    yield
+  rescue ActiveRecord::RecordNotUnique
+    # A racing request with the same creation key committed between the lookup and the
+    # insert: the unique index stopped this one, so hand back what the other created.
+    existing = existing_by_creation_key(record)
+    raise unless existing
+
+    render_existing(existing)
+  end
+
+  # Only to a caller who could read it anyway (the same check as show): a key is no
+  # credential, so guessing someone else's must not hand their record over.
+  def render_existing(existing)
+    authorize! :show, existing
+    render json: existing.to_json(json_attrs), status: 200
   end
 
   def json_attrs
