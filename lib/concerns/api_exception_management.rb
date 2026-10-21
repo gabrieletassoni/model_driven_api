@@ -3,7 +3,12 @@ module ApiExceptionManagement
     
     included do
         if Rails.env.production?
-            rescue_from NoMethodError, with: :not_found!
+            # ORDER MATTERS: Rails tries rescue_from handlers from the LAST declared to the
+            # first, so the StandardError catch-all must be declared FIRST. Declared last (as it
+            # was until 3.11.0) it shadowed every specific handler below: in production every
+            # AccessDenied (wrong login credentials), RecordNotFound, RecordInvalid, CanCan
+            # denial... answered 500. Covered by spec/lib/concerns/api_exception_management_spec.rb.
+            rescue_from StandardError, with: :fivehundred!
             rescue_from CanCan::AccessDenied, with: :unauthorized!
             rescue_from AuthenticateUser::AccessDenied, with: :unauthenticated!
             rescue_from ActionController::RoutingError, with: :not_found!
@@ -14,11 +19,17 @@ module ApiExceptionManagement
             # #destroy! — reuse invalid! since both exceptions expose the same .record interface.
             rescue_from ActiveRecord::RecordNotDestroyed, with: :invalid!
             rescue_from ActiveRecord::RecordNotFound, with: :not_found!
-            rescue_from ActiveRecord::RecordNotUnique, with: :invalid!
+            # Not invalid!: RecordNotUnique carries no .record, so invalid! itself raised and
+            # every unique-index violation answered 500.
+            rescue_from ActiveRecord::RecordNotUnique, with: :not_unique!
             # Rescue Stale Object in Optimistick locking with stale!
             rescue_from ActiveRecord::StaleObjectError, with: :stale!
-            rescue_from EndpointValidationError, with: :api_error
-            rescue_from StandardError, with: :fivehundred!
+            rescue_from EndpointValidationError, with: :endpoint_invalid!
+        end
+
+        # api_error takes keywords only, so it can't be a rescue_from handler itself.
+        def endpoint_invalid! exception = EndpointValidationError.new
+            return api_error status: 501, errors: exception.message
         end
 
         def stale! exception = StandardError.new
@@ -42,6 +53,13 @@ module ApiExceptionManagement
             return api_error status: 422, errors: exception.record.errors 
         end
         
+        # The database message names tables, columns and index definitions: log it, don't
+        # send it back.
+        def not_unique! exception = ActiveRecord::RecordNotUnique.new
+            Rails.logger.warn("RecordNotUnique: #{exception.message}")
+            return api_error status: 422, errors: "A record with the same unique values already exists"
+        end
+
         def fivehundred! exception = StandardError.new
             return api_error status: 500, errors: exception.message
         end

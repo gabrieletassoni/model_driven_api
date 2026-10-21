@@ -15,6 +15,32 @@ RSpec.describe "API v3 Info", type: :request do
       json = JSON.parse(response.body)
       expect(json).to have_key("version")
     end
+
+    # The host app's `version` file (Thecore release convention: CI builds and deploys when it
+    # changes, and the image is `ADD . /app`, i.e. Rails.root) is the deployed version.
+    context "with a version file in the app root" do
+      let!(:dir) { Dir.mktmpdir }
+
+      before do
+        File.write(File.join(dir, "version"), "3.23.20\n")
+        allow(Rails).to receive(:root).and_return(Pathname.new(dir))
+      end
+
+      after { FileUtils.remove_entry(dir) }
+
+      it "returns the host app's deployed version (v2 and v3)" do
+        get "/api/v3/info/version"
+        expect(JSON.parse(response.body)["version"]).to eq("3.23.20")
+        get "/api/v2/info/version"
+        expect(JSON.parse(response.body)["version"]).to eq("3.23.20")
+      end
+    end
+
+    it "returns a null version, not a placeholder, when there is no version file" do
+      allow(Rails).to receive(:root).and_return(Pathname.new(Dir.mktmpdir))
+      get "/api/v3/info/version"
+      expect(JSON.parse(response.body)).to eq("version" => nil)
+    end
   end
 
   describe "GET /api/v3/info/heartbeat" do

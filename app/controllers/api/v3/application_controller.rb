@@ -34,9 +34,10 @@ class Api::V3::ApplicationController < Api::V2::ApplicationController
     return render json: result, status: (status_number.presence || 200) if status == true
 
     record = @model.new(jsonapi_attributes)
-    record.save!
-    serializer = Api::V3::SerializerFactory.serializer_for(@model)
-    render json: serializer.new(record, **serializer_opts).serializable_hash, status: :created
+    create_once(record) do
+      serializer = Api::V3::SerializerFactory.serializer_for(@model)
+      render json: serializer.new(record, **serializer_opts).serializable_hash, status: :created
+    end
   end
 
   def update
@@ -63,6 +64,13 @@ class Api::V3::ApplicationController < Api::V2::ApplicationController
   end
 
   private
+
+  # v2's read check, with a JSON:API envelope.
+  def render_existing(existing)
+    authorize! :show, existing
+    serializer = Api::V3::SerializerFactory.serializer_for(@model)
+    render json: serializer.new(existing, **serializer_opts).serializable_hash, status: :ok
+  end
 
   def apply_filters(scope)
     filter_params = params[:filter] || {}

@@ -7,6 +7,10 @@ require 'jwt'
 require 'json_web_token'
 require "kaminari"
 require "pagy"
+# jsonapi-serializer backs every /api/v3 response (Api::V3::SerializerFactory). A host gets it
+# only transitively, so Bundler.require never loads it: without this require every v3 request
+# answered 500 "uninitialized constant Api::V3::SerializerFactory::JSONAPI".
+require "jsonapi/serializer"
 # require "multi_json"
 require "simple_command"
 
@@ -26,11 +30,34 @@ require "api/open_api/v3"
 require "api/v3/serializer_factory"
 
 module ModelDrivenApi
+  UTC_ZONE_NAMES = %w[UTC Etc/UTC].freeze
+
+  # The host app's deployed version: the `version` file in its root (Thecore release convention —
+  # CI builds and deploys when it changes; the image is `ADD . /app`, so it ships in Rails.root).
+  # nil when the app has no such file. Served by GET /api/v2|v3/info/version.
+  def self.app_version
+    file = Rails.root.join("version")
+    file.file? ? file.read.strip.presence : nil
+  end
+
+  # Raises unless the app is UTC-only: +time_zone+ is config.time_zone, +db_zone+ is
+  # config.active_record.default_timezone (nil = Rails' default, :utc). Called at boot by
+  # ModelDrivenApi::Engine's :enforce_utc_time_zone initializer.
+  def self.enforce_utc!(time_zone, db_zone = nil)
+    unless UTC_ZONE_NAMES.include?(time_zone.to_s)
+      raise ArgumentError, "model_driven_api requires config.time_zone to be UTC (got #{time_zone.inspect}). " \
+                           "The backend is UTC-only; localize dates in the frontend instead."
+    end
+    return if db_zone.nil? || db_zone.to_sym == :utc
+
+    raise ArgumentError, "model_driven_api requires config.active_record.default_timezone to be :utc " \
+                         "(got #{db_zone.inspect})."
+  end
+
+  # Kept for the many existing callers (host apps, mytask, ...): the implementation lives in
+  # thecore_backend_commons (ThecoreBackendCommons.smart_merge), which this gem depends on, so
+  # that lower-layer gems can compose json_attrs without referencing this gem.
   def self.smart_merge src, dest
-      src.deeper_merge! dest, {
-          extend_existing_arrays: true, 
-          merge_hash_arrays: true
-      }
-      src
+    ThecoreBackendCommons.smart_merge(src, dest)
   end
 end
