@@ -73,7 +73,7 @@ bundle exec rails db:migrate
 POST /api/v2/authenticate
 Content-Type: application/json
 
-{ "auth": { "email": "admin@example.com", "password": "Change#1" } }
+{ "auth": { "email": "admin@example.com", "password": "<password>" } }
 ```
 
 Response body: User JSON. Response header: `Token: <jwt>`.

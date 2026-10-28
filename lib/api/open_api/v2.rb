@@ -732,7 +732,7 @@ To begin a session, the client must POST user credentials to the authentication 
 {
     "auth": {
         "email": "admin@example.com",
-        "password": "Change#1"
+        "password": "<password>"
     }
 }
 

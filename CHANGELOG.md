@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [3.12.1] - 2026-10-28
+
+### Changed
+- The `POST /api/v2/authenticate` example (README, OpenAPI v2 description) no longer shows `Change#1`, the old fixed admin seed password that thecore_auth_commons 3.6.2 removed; it shows `<password>`.
+
 ## [3.9.1] - 2026-09-08
 
 ### Fixed
