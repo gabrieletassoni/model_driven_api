@@ -187,6 +187,7 @@ Use `ModelDrivenApi.smart_merge(existing, additions)` when composing `json_attrs
 
 - Expiry controlled by `SESSION_TIMEOUT_IN_MINUTES` env var (default 31 minutes).
 - Secret from `Rails.application.credentials.secret_key_base` or `SECRET_KEY_BASE` env var.
+- **Key rotation** (3.13.0, Odoo #5836): while `SECRET_KEY_BASE_PREVIOUS_EXPIRES_AT` (ISO 8601) is in the future, `decode` also accepts tokens signed with `SECRET_KEY_BASE_PREVIOUS`; the sliding renewal then re-signs them with the current key. No expiry, or a past one, means the previous key is ignored. Only `JWT::VerificationError` falls back, so an expired token is never revived. Tokens are always signed with the current key. Covered by `spec/requests/api/v2/secret_key_rotation_spec.rb` and `spec/lib/json_web_token_spec.rb`.
 - When `ALLOW_MULTISESSIONS=false`, every login invalidates previous tokens via `UsedToken` table. Tokens are stored and checked against `used_tokens` on each decode.
 
 ### Safe SQL executor (`lib/safe_sql_executor.rb`)

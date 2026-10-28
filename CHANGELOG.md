@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [3.13.0] - 2026-10-28
+
+### Security
+- **`SECRET_KEY_BASE` can be rotated without logging app users out** (Odoo #5836) — `JsonWebToken.decode` also accepts a token signed with `SECRET_KEY_BASE_PREVIOUS`, but only until `SECRET_KEY_BASE_PREVIOUS_EXPIRES_AT` (ISO 8601; without it, or once it has passed, the previous key is ignored). Every authenticated response already renews the token with the current key, so active sessions move to the new key on their next request. Only a bad signature falls back to the previous key: an expired token stays expired. Cookies are deliberately not rotated (only admins use them, and a public old key must not keep validating forged sessions).
+
 ## [3.12.2] - 2026-10-28
 
 ### Security
