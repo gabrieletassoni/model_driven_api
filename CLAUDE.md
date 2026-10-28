@@ -32,7 +32,7 @@ bundle exec standardrb
 |---|---|
 | `application_controller.rb` | Base controller — auth, model extraction, all CRUD actions |
 | `authentication_controller.rb` | `POST /api/v2/authenticate` — email/password → JWT |
-| `auth/oauth_controller.rb` | OAuth2 callback + token exchange for Google/Microsoft |
+| `auth/oauth_controller.rb` | OAuth2 callback + token exchange for Google/Microsoft. `callback` takes the identity only from `request.env['omniauth.auth']` (set by the OmniAuth middleware on `/auth/:provider/callback`, which routes here directly, not via redirect), never from params (Odoo #5837); `exchange_token` asks the provider's userinfo endpoint and only logs in existing users |
 | `info_controller.rb` | `/api/v2/info/*` — version, roles, schema, dsl, swagger, openapi, ntp, heartbeat, translations, settings |
 | `raw_controller.rb` | `POST /api/v2/raw/sql` — safe SELECT-only SQL executor |
 

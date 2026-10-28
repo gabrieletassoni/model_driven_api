@@ -3,8 +3,9 @@
 Rails.application.routes.draw do
   scope ENV.fetch("RAILS_RELATIVE_URL_ROOT", "/") do
     if ThecoreAuthCommons.oauth_vars?
-      # OmniAuth callbacks need these top-level paths:
-      match "/auth/:provider/callback", to: redirect("/api/v2/auth/%{provider}/callback"), via: [:get, :post]
+      # OmniAuth callbacks need these top-level paths. The callback goes straight to the controller:
+      # a redirect would drop the verified request.env['omniauth.auth'] the middleware has just set.
+      match "/auth/:provider/callback", to: "api/v2/auth/oauth#callback", via: [:get, :post], defaults: { format: :json }
       match "/auth/failure", to: redirect("/api/v2/auth/failure"), via: [:get, :post]
     end
     namespace :api, constraints: { format: :json } do

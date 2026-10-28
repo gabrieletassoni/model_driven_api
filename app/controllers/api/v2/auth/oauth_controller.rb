@@ -1,7 +1,15 @@
 module Api::V2::Auth
   class OauthController < ActionController::API
+    # L'identità arriva solo da request.env['omniauth.auth'], che il middleware OmniAuth imposta
+    # dopo aver verificato il login col provider; mai dai parametri della richiesta, che chiunque
+    # può inviare (fino alla 3.12.1 bastava una POST con email= per avere il JWT di quell'utente).
     def callback
-      user = ThecoreAuthCommons.check_user params['email'], params['given_name'], params['family_name'], params['provider']
+      auth = request.env['omniauth.auth']
+      info = auth&.info
+      user = info && ThecoreAuthCommons.check_user(info.email,
+                                                   info.first_name.presence || info.name,
+                                                   info.last_name,
+                                                   auth.provider)
 
       unless user
         render json: { error: "User not registered" }, status: :unauthorized

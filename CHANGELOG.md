@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [3.12.2] - 2026-10-28
+
+### Security
+- **OAuth callback takes the identity only from OmniAuth** (Odoo #5837) — `Api::V2::Auth::OauthController#callback` (and v3) read `email` from the request parameters, so a single unauthenticated `POST /api/v2/auth/<provider>/callback` with `email=` returned a JWT for that user (when OAuth env vars are set). It now reads only `request.env['omniauth.auth']`, set by the OmniAuth middleware after verifying the login with the provider, and answers 401 without it. The top-level `/auth/:provider/callback` now routes straight to the controller instead of redirecting, which used to drop that verified hash.
+
 ## [3.12.1] - 2026-10-28
 
 ### Changed
