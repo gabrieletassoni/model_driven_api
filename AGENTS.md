@@ -222,3 +222,7 @@ Key spec locations:
 - **Schema is generated, not hand-maintained.** `test/dummy/db/schema.rb` is derived from the dependency chain migrations (`thecore_auth_commons`, `thecore_settings`, `model_driven_api`, `active_storage`). Regenerate with `RAILS_ENV=test bundle exec rake db:migrate db:schema:dump`. Never add host-app models (e.g. `Article`, `Plant`) to the dummy app; use models from the dependency chain (`Role`, `User`).
 - `spec/spec_helper.rb` `before(:suite)` re-overrides `Ability#initialize` to grant `can :manage, :all`. The permissions tables exist but are empty; without this patch `ThecoreAuthCommonsCanCanCanConcern` would resolve zero abilities for every user.
 - The `application/vnd.api+json` body parser must be tested via `params: payload.to_json` with `"Content-Type" => "application/vnd.api+json"` headers — RSpec request specs honour this.
+
+## Security scanning and agent skills
+
+See the "Security scanning" and "Agent skills" sections of `CLAUDE.md`. Issues live in this repository's GitHub Issues (`docs/agents/issue-tracker.md`), and the skills come from the `mattpocock-skills` plugin on the host, never vendored here.
