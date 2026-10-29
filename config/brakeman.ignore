@@ -1,0 +1,28 @@
+{
+  "ignored_warnings": [
+    {
+      "warning_type": "Remote Code Execution",
+      "warning_code": 24,
+      "fingerprint": "3a0e243d6afeb081594823f1d9102c5c6f9235211b4d2bcf3121eb57e91b65b9",
+      "check_name": "UnsafeReflection",
+      "message": "Unsafe reflection method `constantize` called on parameter value",
+      "file": "app/controllers/api/v2/application_controller.rb",
+      "line": 146,
+      "link": "https://brakemanscanner.org/docs/warning_types/remote_code_execution/",
+      "code": "\"Endpoints::#{params[:ctrl].to_s.classify}\".constantize",
+      "render_path": null,
+      "location": {
+        "type": "method",
+        "class": "Api::V2::ApplicationController",
+        "method": "public_custom_action?"
+      },
+      "user_input": "params[:ctrl].to_s.classify",
+      "confidence": "High",
+      "cwe_id": [
+        470
+      ],
+      "note": "False positive (host Odoo #5884). The class name is always prefixed with Endpoints:: and ActiveSupport's constantize never falls back to a top-level constant (Endpoints::String raises NameError), so only an existing Endpoints::* class can be loaded; nothing is instantiated here. Guarded by the host's test/integration/api_reflection_test.rb."
+    }
+  ],
+  "brakeman_version": "8.1.0"
+}

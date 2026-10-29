@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+## [3.13.1] - 2026-10-29
+
+### Security
+- **The generic API never instantiates the class named by the path** (host Odoo #5884). `Api::ModelResolver` turned the first path segment into a class and called `.new` on it to check it was a model, so with any valid JWT `GET /api/v2/tempfiles` ran `Tempfile.new` and created a file on the server. It now only inspects the class (`safe_constantize`, then a concrete `ActiveRecord::Base` subclass); anything else still answers 404.
+- `config/brakeman.ignore` documents Brakeman's High `UnsafeReflection` on `"Endpoints::#{params[:ctrl]}".constantize` in `public_custom_action?` as a false positive: ActiveSupport's `constantize` never falls back to a top-level constant, so only an existing `Endpoints::*` class can be loaded.
+
 ## [3.13.0] - 2026-10-28
 
 ### Security

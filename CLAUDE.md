@@ -133,7 +133,7 @@ class Endpoints::MyModel < NonCrudEndpoints
   end
 end
 ```
-`ApplicationController#authenticate_request` checks `NonCrudEndpoints.public_action?(model, action)` and skips token validation for registered public actions. The `Endpoints::<Model>` class is force-loaded (via `constantize`) in `public_custom_action?` before the check so declarations are visible even on first request. CanCan authorization is also skipped for public actions. `params[:current_user_id]` is nil for these calls — do not call `User.find(params[:current_user_id])` in a public action.
+`ApplicationController#authenticate_request` checks `NonCrudEndpoints.public_action?(model, action)` and skips token validation for registered public actions. The `Endpoints::<Model>` class is force-loaded (via `constantize`) in `public_custom_action?` before the check so declarations are visible even on first request. That runs before authentication on a path segment; it is safe because ActiveSupport's `constantize` never falls back to a top-level constant, so `Endpoints::String` is a `NameError`. `config/brakeman.ignore` records Brakeman's High `UnsafeReflection` there as a false positive for this reason. CanCan authorization is also skipped for public actions. `params[:current_user_id]` is nil for these calls — do not call `User.find(params[:current_user_id])` in a public action.
 
 ### Concerns to include in host models
 
@@ -265,7 +265,7 @@ DELETE /api/v3/*path/:id               → CRUD destroy (204 No Content)
 
 - **The backend is UTC-only, enforced at boot** — the engine's `:enforce_utc_time_zone` initializer (runs before `active_support.initialize_time_zone`) calls `ModelDrivenApi.enforce_utc!`, raising `ArgumentError` unless `config.time_zone` is `UTC`/`Etc/UTC` and `config.active_record.default_timezone` is unset or `:utc`. Frontends localize dates. This replaced (3.11.0) the old global `TimeWithZone#as_json -> utc` monkey-patch in `config/initializers/time_with_zone.rb` (the file now holds only the explanation): that patch flattened deliberately-localized values — `thecore_backend_commons`' `TimeZoneAware` `_server_tz`/`_record_tz` — back to UTC. Plain datetimes still render as `...Z`; a value converted with `in_time_zone(zone)` keeps its offset. Covered by `spec/initializers/utc_time_zone_spec.rb`. Never reintroduce a global `as_json` override on time classes.
 - `params` is overridden to `request.parameters` — strong parameters are bypassed intentionally. Do not use `params.require(...).permit(...)` patterns.
-- **`extract_model` delegates to `Api::ModelResolver.resolve`** — raises `Api::ModelResolver::NotFound` for non-AR classes; returns `nil` (no exception) when no class can be resolved (info/utility controllers). `not_found!` is called only in the `rescue` clause in `extract_model`, not inside the resolver itself.
+- **`extract_model` delegates to `Api::ModelResolver.resolve`** — raises `Api::ModelResolver::NotFound` for non-AR classes (since 3.13.1 it only inspects the resolved class, never calls `.new` on it: the name comes from the request path, and `GET /api/v2/tempfiles` used to create a temp file); returns `nil` (no exception) when no class can be resolved (info/utility controllers). `not_found!` is called only in the `rescue` clause in `extract_model`, not inside the resolver itself.
 - **`check_for_custom_action` delegates to `Api::CustomActionDispatcher.call`** — the dispatcher accepts `params[:do]` as the literal action name (no token extraction). Bearer tokens must be sent via the `Authorization` header. The old IoT workaround (`params[:do].split("-")` to extract a token embedded in the action name) has been removed.
 - **`Api::ResourceAttributeSet.for(model_class)`** — single source of truth for resolving `json_attrs[:only]`/`[:except]`/`[:methods]`/`[:include]` into a struct. Both `SerializerFactory` and `Api::OpenApi::Base` use it; never inline this logic again.
 - **`Api::OpenApi::V2` and `Api::OpenApi::V3`** — OpenAPI path generation lives in `lib/api/open_api/`, not in the info controllers. The info controllers only build the outer spec envelope (server URL, version, security) and call `.new(models, request).generate`.
@@ -321,6 +321,8 @@ Configured in the GitHub repository settings, not in files:
   apps' pipelines, whose `Gemfile.lock` resolves every ATOM.
 - Findings never block a release: GitHub notifies the owner. When one needs work, open a GitHub
   issue (see Agent skills).
+- `config/brakeman.ignore` (for a local `brakeman` run) records the High `UnsafeReflection` in
+  `public_custom_action?` as a false positive (see Custom actions above). Each entry's `note` says why.
 
 ## Agent skills
 
