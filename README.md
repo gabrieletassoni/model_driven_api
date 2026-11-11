@@ -461,10 +461,6 @@ simplest safe default. A model with its own `Api::ModelName` concern (or `ModelD
 freely overrides or merges on top of it via `ModelDrivenApi.smart_merge`. Only a model with no
 concern at all keeps the bare default.
 
-**Temporary dependency note**: this currently requires `thecore_backend_commons` from a Gemfile
-`git:` pin to its `release/3` branch, since the RubyGems release hasn't caught up with the
-registry yet — see this repo's `CLAUDE.md` for the exact commit/removal condition.
-
 ---
 
 ## Raw SQL endpoint

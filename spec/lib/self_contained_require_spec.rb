@@ -6,7 +6,7 @@ require "open3"
 # The dummy app's own Gemfile lists jsonapi-serializer directly (auto-required), which hid a
 # missing require: every /api/v3 request in a host answered 500 "uninitialized constant
 # Api::V3::SerializerFactory::JSONAPI". Checked in a fresh process, outside the dummy's
-# Bundler.require (same trap as pagy, see CLAUDE.md).
+# Bundler.require (same trap as pagy, see docs/agents/request-pipeline.md).
 RSpec.describe "require \"model_driven_api\" (as a host app loads it)" do
   it "loads the runtime dependencies it references" do
     script = <<~RUBY

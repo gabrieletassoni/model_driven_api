@@ -2,6 +2,37 @@
 
 This is a Rails engine gem (`model_driven_api`) that auto-generates a versioned REST API at `/api/v2/` (plain JSON, Ransack-powered) and `/api/v3/` (JSON:API-compliant) by introspecting ActiveRecord models at runtime. It lives as a git submodule inside a parent Thecore application.
 
+Every request goes through `Api::V2::ApplicationController` (v3 inherits it): JWT auth, model resolution, CanCan authorization, CRUD. Public gem on GitHub; `.github/workflows/gempush.yml` publishes to RubyGems only when `lib/model_driven_api/version.rb` changes on `release/3`.
+
+## Where things are
+
+```
+app/controllers/api/v2/  application (core CRUD + auth), authentication, auth/oauth, info, raw (SQL)
+app/controllers/api/v3/  JSON:API layer on v2: application, authentication, auth/oauth, info, raw, users
+app/models/endpoints/    push_subscriber.rb (custom endpoints)
+lib/model_driven_api.rb  gem entrypoint (explicit requires: pagy, jsonapi/serializer)
+lib/model_driven_api/    engine.rb, version.rb
+lib/api/                 model_resolver, custom_action_dispatcher, resource_attribute_set,
+                         open_api/{base,v2,v3}, v3/serializer_factory
+lib/                     json_web_token.rb, safe_sql_executor.rb, non_crud_endpoints.rb, concerns/
+config/initializers/     after_initialize_for_model_driven_api.rb, default_json_attrs_registration.rb
+spec/  test/dummy/       RSpec + PostgreSQL dummy app
+docs/adr/  docs/agents/  GLOSSARY.md  AGENTS.md (orientation map)
+```
+
+## Read before working on…
+
+| Topic | File |
+| --- | --- |
+| Entry point, v2/v3 controllers and request flow, Ransack search, routes | `docs/agents/request-pipeline.md` |
+| `json_attrs`, `SerializerFactory`, host-model concerns, default `json_attrs` | `docs/agents/serialization.md` |
+| Custom actions (`?do=`, `NonCrudEndpoints`, `public_action`), PushSubscriber endpoints | `docs/agents/custom-actions.md` |
+| JWT and key rotation, raw SQL, `info/version`, OpenAPI generation | `docs/agents/jwt-raw-sql-info-openapi.md` |
+| Key invariants and gotchas (full text of the rules below) | `docs/agents/invariants-and-gotchas.md` |
+| Dummy app, schema, spec helpers | `docs/agents/testing.md` |
+| CodeQL, secret scanning, Dependabot, `brakeman.ignore` | `docs/agents/security-scanning.md` |
+| Issues (GitHub), triage labels, glossary/ADR layout | `docs/agents/issue-tracker.md`, `triage-labels.md`, `domain.md` |
+
 ## Commands
 
 ```bash
@@ -16,313 +47,26 @@ bundle exec standardrb
 # 2. Commit and push — CI builds the gem
 ```
 
-## Architecture
-
-### Entry point
-
-`lib/model_driven_api.rb` — loads all dependencies and requires the engine. The engine (`lib/model_driven_api/engine.rb`) appends the gem's migrations to the host app and registers the `application/vnd.api+json` MIME type with a parameter parser (symbol key `:json_api` in `ActionDispatch::Request.parameter_parsers`).
-
-`pagy` is explicitly `require`d here (alongside `kaminari`). Pagy is not auto-loaded by Bundler because it is needed the moment `Api::V3::ApplicationController` class body is evaluated — before eager loading runs. Removing `require "pagy"` from this file causes `NameError: uninitialized constant Pagy` on any rake task or server boot that loads the application.
-
-`jsonapi/serializer` is required here for the same reason: a host app gets it only transitively, so `Bundler.require` never loads it, and without the explicit require every `/api/v3` request in a host answered 500 `uninitialized constant Api::V3::SerializerFactory::JSONAPI` (until 3.11.4). The dummy app's Gemfile lists it directly, which auto-requires it and hid the bug in this gem's own specs. `spec/lib/self_contained_require_spec.rb` loads the gem in a fresh process, as a host does, and asserts its runtime dependencies are defined — add any new runtime dependency's constant there.
-
-### Controllers (`app/controllers/api/v2/`)
-
-| File | Role |
-|---|---|
-| `application_controller.rb` | Base controller — auth, model extraction, all CRUD actions |
-| `authentication_controller.rb` | `POST /api/v2/authenticate` — email/password → JWT |
-| `auth/oauth_controller.rb` | OAuth2 callback + token exchange for Google/Microsoft. `callback` takes the identity only from `request.env['omniauth.auth']` (set by the OmniAuth middleware on `/auth/:provider/callback`, which routes here directly, not via redirect), never from params (Odoo #5837); `exchange_token` asks the provider's userinfo endpoint and only logs in existing users |
-| `info_controller.rb` | `/api/v2/info/*` — version, roles, schema, dsl, swagger, openapi, ntp, heartbeat, translations, settings |
-| `raw_controller.rb` | `POST /api/v2/raw/sql` — safe SELECT-only SQL executor |
-
-### Controllers (`app/controllers/api/v3/`)
-
-| File | Role |
-|---|---|
-| `application_controller.rb` | Inherits v2 base — overrides CRUD with JSON:API envelopes, Pagy pagination, `filter[field]` filtering, `sort` ordering |
-| `authentication_controller.rb` | Thin subclass of v2 auth controller — provides `POST /api/v3/authenticate` |
-| `auth/oauth_controller.rb` | Thin subclass of v2 OAuth controller — exposes only `exchange_token` via `POST /api/v3/auth/jwt` (registered only when `oauth_vars?`); `callback`/`failure` stay v2-only (OmniAuth middleware is hardcoded to v2 path) |
-| `info_controller.rb` | Inherits v2 info — overrides only `openapi`/`swagger` to call `Api::OpenApi::V3`; all other info actions inherited unchanged |
-| `raw_controller.rb` | `GET/POST /api/v3/raw/sql` — same SELECT-only guard; returns **plain JSON array** (deliberate JSON:API exception) |
-| `users_controller.rb` | Thin subclass of v3 application controller — adds `check_demoting` guard on `update`/`patch`/`destroy`; prevents a user from modifying their own `admin` or `locked` flags (same constraint as v2) |
-
-### `Api::V2::ApplicationController` — the core
-
-Every API request goes through `Api::V2::ApplicationController`:
-
-1. `authenticate_request` — resolves `@current_user` via pluggable authorization headers (`Settings.ns(:security).allowed_authorization_headers`) or JWT bearer token. Writes a fresh JWT to the `Token` response header on every successful request (sliding expiration).
-2. `extract_model` — resolves `@model` from `params[:ctrl]`, path, or controller name (in that order). Pulls `@body` from singular/plural model param.
-3. `find_record` — called only for show/update/destroy; finds by `params[:id]`.
-4. CRUD actions (`index`, `show`, `create`, `update`/`patch`, `destroy`, `update_multi`, `destroy_multi`) — all delegate authorization to CanCan (`authorize! :action, @model`).
-
-### `Api::V3::ApplicationController` — JSON:API layer
-
-Inherits from v2; reuses `authenticate_request`, `extract_model`, `find_record`, and all CanCan authorization. Overrides all CRUD actions:
-
-- **`index`** — `filter[field]=value` params (validated against `ransackable_attributes`), `sort=field` / `sort=-field` (comma-separated), Pagy pagination via `page[number]` + `page[size]`. Response: `{ data: […], meta: { total: N } }`.
-- **`show`** — `{ data: { id:, type:, attributes: {} } }`.
-- **`create`** — reads attributes from `params[:data][:attributes]`. Response: 201 + resource object.
-- **`update`/`patch`** — reads attributes from `params[:data][:attributes]`. Response: 200 + resource object.
-- **`destroy`** — 204 No Content.
-
-**Sideloading (hybrid)** — default sideloads come from `json_attrs[:include]` keys. The client overrides with `?include=assoc1,assoc2`; passing `?include=` (empty string) suppresses all sideloads. Implemented in `requested_includes` / `default_includes`.
-
-**Sparse fieldsets** — `?fields[type]=field1,field2` narrows the attributes returned per type. Passed to the serializer as `fields: { type: [:field1, :field2] }`. Implemented in `sparse_fields` / `serializer_opts`.
-
-### `Api::V3::SerializerFactory` (`lib/api/v3/serializer_factory.rb`)
-
-Lazily generates a named `JSONAPI::Serializer` subclass from each model's `json_attrs`. Classes are cached in the `Api::V3` namespace as `<ModelName>Serializer` after first generation.
-
-Attribute resolution is delegated to `Api::ResourceAttributeSet.for(model_class, jattrs:)` (see below), which owns the `only:` / `except:` / `methods:` / `include:` logic in one place. The factory reads the resolved struct fields directly.
-
-`json_attrs[:methods]` — each symbol becomes a block-form `attribute` using `object.send(method_name)`. `send` (not `public_send`) is required — `thecore_backend_commons`'s `BaseApplicationRecordConcern` injects `methods: [:assets_paths, :rich_content_html]` into every model at `after_initialize` time, and both are declared `private`. Rails `as_json` uses `send` for the same reason.
-
-`json_attrs[:include]` — each entry is a bare symbol (`:assoc`) or a hash (`assoc: { only: [:id] }`). A nested serializer is generated as `<AssocModel>For<ParentModel>Serializer`, registered with the correct macro (`has_many`/`has_one`/`belongs_to`) from `reflect_on_all_associations`. Nested serializers are always flat — `include:` is not processed recursively — to prevent infinite loops on circular associations (e.g. `Role ↔ User`).
-
-`extract_includes(include_spec)` is still a public class method (specs test it directly); it delegates to `Api::ResourceAttributeSet#parsed_includes`.
-
-```ruby
-serializer = Api::V3::SerializerFactory.serializer_for(Role)
-# → Api::V3::RoleSerializer (generated on first call, cached afterwards)
-# Also generates Api::V3::UserForRoleSerializer when Role.json_attrs[:include] contains users:
-```
-
-The `:id` field is excluded from `attributes` (the serializer handles it as the resource identifier). When all non-id attributes are stripped, the jsonapi-serializer gem omits the `:attributes` key entirely from the hash (per JSON:API spec). Use `.to_h` when asserting emptiness: `expect(attrs.to_h).to be_empty`.
-
-### Ransack-powered search (`index`) — v2 only
-
-`GET /api/v2/:model?q[field_predicate]=value` or `POST /api/v2/:model/search`.  
-Pagination via `page` + `per`. Count-only via `count=true`.  
-Field selection via `a` or `json_attrs` (mirrors Rails `as_json` DSL: `only`, `except`, `methods`, `include`).
-
-### Custom actions — v2 and v3
-
-Two patterns are supported, dispatched by `Api::CustomActionDispatcher.call(model, params, request)` (called from `check_for_custom_action` in both v2 and v3 controllers):
-
-**Pattern 1 — class method on the model:**
-```ruby
-def self.custom_action_my_action(params)
-  [{ result: "ok" }, 200]
-end
-```
-Triggered via `GET /api/v2/my_model?do=my_action`, `GET /api/v3/my_model?do=my_action`, or with `/:id`.
-
-**Pattern 2 — `NonCrudEndpoints` subclass:**
-```ruby
-class Endpoints::MyModel < NonCrudEndpoints
-  self.desc 'MyModel', :my_action, { get: { ... openapi schema ... } }
-  def my_action(params)
-    [{ result: "ok" }, 200]
-  end
-end
-```
-Triggered via `GET /api/v2/my_model/custom_action/my_action` or `GET /api/v3/my_model/custom_action/my_action`, with optional `/:id`.
-
-Place endpoint files in `app/models/endpoints/model_name.rb` in the host app.
-
-Custom action responses in v3 are plain JSON (not JSON:API envelopes) — the dispatcher serializes via `body.to_json(json_attrs)` before returning.
-
-**Public (unauthenticated) actions** — to declare that a `NonCrudEndpoints` action does not require a JWT token, call `public_action :action_name` in the class body:
-```ruby
-class Endpoints::MyModel < NonCrudEndpoints
-  public_action :my_public_action   # no token required for this action
-  self.desc 'MyModel', :my_public_action, { get: { ... } }
-  def my_public_action(params)
-    [{ result: "ok" }, 200]
-  end
-end
-```
-`ApplicationController#authenticate_request` checks `NonCrudEndpoints.public_action?(model, action)` and skips token validation for registered public actions. The `Endpoints::<Model>` class is force-loaded (via `constantize`) in `public_custom_action?` before the check so declarations are visible even on first request. That runs before authentication on a path segment; it is safe because ActiveSupport's `constantize` never falls back to a top-level constant, so `Endpoints::String` is a `NameError`. `config/brakeman.ignore` records Brakeman's High `UnsafeReflection` there as a false positive for this reason. CanCan authorization is also skipped for public actions. `params[:current_user_id]` is nil for these calls — do not call `User.find(params[:current_user_id])` in a public action.
-
-### Concerns to include in host models
-
-| Concern | Include in | Purpose |
-|---|---|---|
-| `ModelDrivenApiApplicationRecord` | `ApplicationRecord` | Enables `ransackable_attributes` / `ransackable_associations` |
-| `ModelDrivenApiUser` | `User` | Adds `has_many :used_tokens`, default `json_attrs` |
-| `ModelDrivenApiRole` | `Role` | Adds default `json_attrs` |
-| `ModelDrivenApiPushSubscriber` | `PushSubscriber` | `json_attrs` includes `user: { only: [:id, :email, :name, :surname] }` |
-| `ModelDrivenApiPushMessage` | `PushMessage` | `json_attrs` includes `sender: { only: [:id, :email, :name, :surname] }` |
-
-All concerns are registered in `config/initializers/after_initialize_for_model_driven_api.rb` via `send(:include, ...)` inside `after_initialize`. New model concerns go in `lib/concerns/` following the `ModelDrivenApi<ModelName>` naming convention.
-
-### Default `json_attrs` for every model (`ModelDrivenApiDefaultJsonAttrs`, ADR 0001)
-
-Per `vendor/external/thecore/docs/adr/0001-application-record-defaults-over-generated-concerns.md` (host app), a model does **not** need a generated `Api::ModelName` concern just to get a working default API serialization shape. `lib/concerns/model_driven_api_default_json_attrs.rb` defines `ModelDrivenApiDefaultJsonAttrs` — an `ActiveSupport::Concern` whose `included do` block sets `self.json_attrs = { except: [] }` (all columns, no `methods`, no `include`d associations) via `cattr_accessor`, same as the named concerns above.
-
-It is registered once, in `config/initializers/default_json_attrs_registration.rb`, into `ThecoreBackendCommons::DefaultModuleRegistry`:
-
-```ruby
-ThecoreBackendCommons::DefaultModuleRegistry.register(ModelDrivenApiDefaultJsonAttrs)
-```
-
-with no `applies_to:` (defaults to every `ApplicationRecord` subclass). The registry `include`s it into each subclass from `ApplicationRecord.inherited`, at the moment the subclass is defined — installed from `config.to_prepare`, not `after_initialize`, so it is in place before eager loading (see the registry's own docs in `thecore_backend_commons`'s `CLAUDE.md`/`lib/thecore_backend_commons/default_module_registry.rb`).
-
-This composes safely with an explicit `Api::ModelName` concern (host-app convention) or with the named concerns above: `ApplicationRecord.inherited` fires *before* the subclass's own body executes, so the default is always applied first and the class body's later `include Api::ModelName` (or `include ModelDrivenApiUser`/`ModelDrivenApiRole`) always runs after — freely overriding, or (via `ModelDrivenApi.smart_merge`) merging on top of, the default's `{ except: [] }`, which is a no-op when merged (an empty array extended with a non-empty one is just the non-empty one). Models with an explicit concern are therefore unaffected; only a model with no concern at all keeps the bare default. Abstract/STI classes are excluded exactly as the registry itself guarantees (`apply_to` is a no-op for `klass.abstract_class?`, and an STI child inherits the module from its base rather than being re-included).
-
-This required `ThecoreBackendCommons::DefaultModuleRegistry`, which shipped in `thecore_backend_commons` 3.5.0 — the gemspec's existing `~> 3.0` constraint resolves it normally from RubyGems, no pin needed (a temporary `git:`-sourced pin lived in `Gemfile` for a while before 3.5.0 was published and its RubyGems index propagated; it's gone now).
-
-Covered by `spec/initializers/default_json_attrs_spec.rb` — default applied to a no-concern model (`RoleUser`), `instance_methods(false).include?(:json_attrs)`, an explicit-concern model (`Role`) unaffected, abstract-class exclusion, and both `/api/v2/info/schema` and `/api/v2/info/dsl` actually surfacing the default-only model (a previously untested path).
-
-### PushSubscriber custom endpoints (`app/models/endpoints/push_subscriber.rb`)
-
-| Endpoint | Description |
-|---|---|
-| `GET vapid_public_key` | Public — returns VAPID public key |
-| `POST subscribe` | Registers/updates a `PushSubscriber` for the current user |
-| `POST send_push` | Creates and dispatches push notification(s). Accepts `push_subscriber_id` (single, sync dispatch) or `push_subscriber_ids` array (bulk, async via `PushDispatchJob`). Bulk uses `insert_all` for performance and enqueues one `PushDispatchJob` per valid subscriber. Response: single → `PushMessage` JSON; bulk → `{ created: [...], failed: [...invalid_ids] }`. |
-| `POST broadcast_push` | Sends same push to **all** active subscribers (`expired_at IS NULL`). Uses `insert_all` + one `PushDispatchJob` per subscriber (async). Optional params: `message_type` (default `"communication"`), `url`, `icon`. `sender_user_id` set from `current_user_id`. Response: `{ enqueued: N }`. |
-| `POST acknowledge` | Marks a `PushMessage` as `received_at` / `read_at` |
-
-**Serialization note**: `send_push` and `acknowledge` pre-serialize the response with `PushMessage.json_attrs` (not `PushSubscriber.json_attrs`) to avoid `NoMethodError` on `user` — `PushMessage` has `sender`, not `user`.
-
-### JSON serialisation DSL (`json_attrs`)
-
-Each model exposes `self.json_attrs` as a class-level hash with the standard Rails `as_json` keys: `:only`, `:except`, `:methods`, `:include`. The engine reads this in every v2 CRUD response. The v3 `SerializerFactory` reads `json_attrs[:only]` first, then falls back to `column_names - [:except]` if `only:` is not set. Clients can override the shape per-request via the `a` or `json_attrs` query parameter (v2 only).
-
-Use `ModelDrivenApi.smart_merge(existing, additions)` when composing `json_attrs` across concerns — it does a deep merge that extends arrays rather than replacing them. Since 3.11.3 it delegates to `ThecoreBackendCommons.smart_merge` (thecore_backend_commons >= 3.8), where the implementation now lives so lower-layer gems (thecore_backend_commons itself, thecore_ui_rails_admin) can use it without referencing this gem; in those gems call `ThecoreBackendCommons.smart_merge` directly.
-
-### JWT / token management (`lib/json_web_token.rb`)
-
-- Expiry controlled by `SESSION_TIMEOUT_IN_MINUTES` env var (default 31 minutes).
-- Secret from `Rails.application.credentials.secret_key_base` or `SECRET_KEY_BASE` env var.
-- **Key rotation** (3.13.0, Odoo #5836): while `SECRET_KEY_BASE_PREVIOUS_EXPIRES_AT` (ISO 8601) is in the future, `decode` also accepts tokens signed with `SECRET_KEY_BASE_PREVIOUS`; the sliding renewal then re-signs them with the current key. No expiry, or a past one, means the previous key is ignored. Only `JWT::VerificationError` falls back, so an expired token is never revived. Tokens are always signed with the current key. Covered by `spec/requests/api/v2/secret_key_rotation_spec.rb` and `spec/lib/json_web_token_spec.rb`.
-- When `ALLOW_MULTISESSIONS=false`, every login invalidates previous tokens via `UsedToken` table. Tokens are stored and checked against `used_tokens` on each decode.
-
-### Safe SQL executor (`lib/safe_sql_executor.rb`)
-
-`SafeSqlExecutor.execute_select(query)` — validates that the query is a `SELECT` (or `WITH ... SELECT`), then executes. Only SELECT is allowed; DDL/DML raise `ArgumentError`.
-
-- **v2**: The query must return a `result` key (typically via `json_agg`). Response wrapped in `{ result: … }`.
-- **v3**: Returns raw rows as a plain JSON array — no `result` key required. A deliberate exception to JSON:API compliance (see ADR 0004).
-
-### `GET /api/v2|v3/info/version`
-
-Returns `{ version: ModelDrivenApi.app_version }` — the stripped contents of the host app's `version` file in `Rails.root` (the Thecore release convention: CI builds/deploys when it changes, and the production image is `ADD . /app`), or `null` when there is no such file. It used to return a hard-coded `"TODO: Find a Way to Dynamically Obtain It"`, so there was no way to tell which release a server runs. Covered by `spec/requests/api/v3/info_spec.rb`.
-
-### OpenAPI / Swagger self-generation
-
-`GET /api/v2/info/openapi` (alias `/swagger`) and `GET /api/v3/info/openapi` (alias `/swagger`) each generate a full OpenAPI 3.0 spec. Neither endpoint requires authentication.
-
-The generation logic lives in two plain Ruby classes extracted from the info controllers:
-
-| Class | Output |
-|---|---|
-| `Api::OpenApi::V2` | v2 spec: plain JSON, Ransack predicates, search endpoint, PUT, bulk ops, `result` key for SQL |
-| `Api::OpenApi::V3` | v3 spec: JSON:API envelopes, `filter[field]`/`sort`/`page[number|size]` params, PATCH-only, 204 on delete |
-
-Both inherit from `Api::OpenApi::Base` (`lib/api/open_api/base.rb`), which holds the shared type-resolution helpers: `compute_type`, `create_properties_from_model`, `integer?`, `number?`, `datetime?`.
-
-The info controllers call:
-```ruby
-"paths" => Api::OpenApi::V2.new(ApplicationRecord.subclasses, request).generate
-"paths" => Api::OpenApi::V3.new(ApplicationRecord.subclasses, request).generate
-```
-
-Sources in the v2 spec:
-- All `ApplicationRecord` subclasses (CRUD + search + custom action paths)
-- `NonCrudEndpoints` definitions registered via `self.desc`
-
-## Routes summary
-
-```
-# V2 (plain JSON, Ransack-powered)
-POST   /api/v2/authenticate
-GET    /api/v2/info/version|roles|heartbeat|ntp|translations|schema|dsl|settings|swagger|openapi
-GET    /api/v2/raw/sql
-POST   /api/v2/raw/sql
-GET    /api/v2/auth/:provider           → triggers OmniAuth
-POST   /api/v2/auth/:provider/callback
-POST   /api/v2/auth/jwt                 → token exchange from frontend OAuth token
-GET    /api/v2/:ctrl/custom_action/:action_name(/:id)
-POST   /api/v2/:ctrl/custom_action/:action_name
-...    (PUT/PATCH/DELETE custom actions)
-POST   /api/v2/:ctrl/search
-GET    /api/v2/*path(/:id)              → CRUD index / show
-POST   /api/v2/*path                    → CRUD create
-PUT|PATCH /api/v2/*path/:id(/multi)     → CRUD update / bulk update
-DELETE /api/v2/*path/:id(/multi)        → CRUD destroy / bulk destroy
-
-# V3 (JSON:API-compliant)
-POST   /api/v3/authenticate             → same plain JSON as v2 (Token header)
-POST   /api/v3/auth/jwt                 → token exchange from frontend OAuth token (registered only when oauth_vars?)
-GET    /api/v3/info/version|roles|heartbeat|ntp|translations|schema|dsl|settings|swagger|openapi
-GET    /api/v3/raw/sql                  → SQL escape hatch (plain JSON, not JSON:API)
-POST   /api/v3/raw/sql
-GET    /api/v3/:ctrl/custom_action/:action_name(/:id)
-POST   /api/v3/:ctrl/custom_action/:action_name
-...    (PUT/PATCH/DELETE custom actions — plain JSON response, not JSON:API)
-GET|POST|PATCH|DELETE /api/v3/users(/:id) → explicit resource; guarded against self-demotion
-GET    /api/v3/*path/:id               → CRUD show
-GET    /api/v3/*path                   → CRUD index (filter/sort/page params)
-POST   /api/v3/*path                   → CRUD create
-PATCH  /api/v3/*path/:id              → CRUD update (no PUT)
-DELETE /api/v3/*path/:id               → CRUD destroy (204 No Content)
-```
-
-## Key invariants and gotchas
-
-- **The backend is UTC-only, enforced at boot** — the engine's `:enforce_utc_time_zone` initializer (runs before `active_support.initialize_time_zone`) calls `ModelDrivenApi.enforce_utc!`, raising `ArgumentError` unless `config.time_zone` is `UTC`/`Etc/UTC` and `config.active_record.default_timezone` is unset or `:utc`. Frontends localize dates. This replaced (3.11.0) the old global `TimeWithZone#as_json -> utc` monkey-patch in `config/initializers/time_with_zone.rb` (the file now holds only the explanation): that patch flattened deliberately-localized values — `thecore_backend_commons`' `TimeZoneAware` `_server_tz`/`_record_tz` — back to UTC. Plain datetimes still render as `...Z`; a value converted with `in_time_zone(zone)` keeps its offset. Covered by `spec/initializers/utc_time_zone_spec.rb`. Never reintroduce a global `as_json` override on time classes.
-- `params` is overridden to `request.parameters` — strong parameters are bypassed intentionally. Do not use `params.require(...).permit(...)` patterns.
-- **`extract_model` delegates to `Api::ModelResolver.resolve`** — raises `Api::ModelResolver::NotFound` for non-AR classes (since 3.13.1 it only inspects the resolved class, never calls `.new` on it: the name comes from the request path, and `GET /api/v2/tempfiles` used to create a temp file); returns `nil` (no exception) when no class can be resolved (info/utility controllers). `not_found!` is called only in the `rescue` clause in `extract_model`, not inside the resolver itself.
-- **`check_for_custom_action` delegates to `Api::CustomActionDispatcher.call`** — the dispatcher accepts `params[:do]` as the literal action name (no token extraction). Bearer tokens must be sent via the `Authorization` header. The old IoT workaround (`params[:do].split("-")` to extract a token embedded in the action name) has been removed.
-- **`Api::ResourceAttributeSet.for(model_class)`** — single source of truth for resolving `json_attrs[:only]`/`[:except]`/`[:methods]`/`[:include]` into a struct. Both `SerializerFactory` and `Api::OpenApi::Base` use it; never inline this logic again.
-- **`Api::OpenApi::V2` and `Api::OpenApi::V3`** — OpenAPI path generation lives in `lib/api/open_api/`, not in the info controllers. The info controllers only build the outer spec envelope (server URL, version, security) and call `.new(models, request).generate`.
-- **Creation key (idempotent create, v2 and v3)** — a model may define `self.creation_key`, an array of columns identifying a record its client generated (e.g. `def self.creation_key = %i[subtask_code]`), backed by a unique index on those columns. A `POST` whose key matches an existing record creates nothing and answers **200** with that record (v3: JSON:API envelope); a fresh one still answers 201. The same happens when two identical requests race: the unique index stops the second (`RecordNotUnique`, the insert runs in its own savepoint so the lookup after it works inside an enclosing transaction) and it gets the first one's record. The existing record goes back only to a caller who can `show` it (`CanCan::AccessDenied`, 403 in production); the repeated body is ignored, never applied, so a stale retry can't overwrite a later edit. A key with any `nil` value is never looked up. Without `creation_key` nothing changes. The flow lives in `Api::V2::ApplicationController#create_once`, which v3's `create` reuses, passing only how to render the new record (v3 overrides `render_existing` for the envelope). Exists for clients that resend a creation after losing the response (a field app re-entered mid-upload created four copies of the same report); see the host's ADR 0030. Covered by `spec/requests/api/v2/idempotent_create_spec.rb` and `spec/requests/api/v3/idempotent_create_spec.rb`.
-- `update` and `patch` are the same method. `update_multi` and `destroy_multi` expect comma-separated ids in `params[:ids]`.
-- `json_attrs` resolution priority (v2): query param `a`/`json_attrs` > `@json_attrs` instance variable > `@model.json_attrs`.
-- OAuth routes are only registered if `ThecoreAuthCommons.oauth_vars?` returns true (i.e., env vars for Google/Microsoft are set). In v3, only `POST /api/v3/auth/jwt` (token exchange) is registered — `callback` and `failure` remain v2-only because OmniAuth middleware is hardcoded to the v2 path. Clients using browser-redirect OAuth initiate at the top-level `/auth/:provider` (no version prefix) which is transparent.
-- **v3 explicit controllers** — most v3 resource endpoints are handled by the wildcard route → `Api::V3::ApplicationController`. A model-specific controller (e.g. `Api::V3::UsersController`) is added only when a guard or constraint cannot be expressed through the generic CRUD path. Currently: `UsersController` (self-demotion guard — checks `params.dig("data", "attributes")` for `admin`/`locked` keys, not `params[:user]` as in v2).
-- The `Content-Range` header is always set on v2 index responses; frontends that use react-admin or similar expect it.
-- **v2 index on an empty collection answers 404 with body `[]`** — deliberate, long-standing contract (`status = @records_count.zero? && params[:always_ok].blank? ? 404 : 200` in `Api::V2::ApplicationController#index`); clients branch on it, so changing the default is a breaking change. Pass `always_ok=true` to get 200 instead (added 2026-01-13, 22d54f3). v3 always answers 200 with `{"data":[],"meta":{"total":0}}`. Pinned by `spec/requests/api/v2/index_empty_collection_spec.rb`.
-- The `application/vnd.api+json` MIME type parameter parser is registered with key `:json_api` (Symbol) in `ActionDispatch::Request.parameter_parsers` — not with a `Mime::Type` object (the hash uses Symbol keys, not MIME type objects).
-- `ApiExceptionManagement` rescue_from handlers are **production-only**. In test/development, unhandled exceptions propagate as 500s without an error body. **Declaration order matters**: Rails tries `rescue_from` handlers from the last declared to the first, so the `StandardError` → `fivehundred!` catch-all is declared **first**. Until 3.11.0 it was declared last and shadowed every specific handler — in production a wrong login (`AuthenticateUser::AccessDenied`), `RecordNotFound`, `RecordInvalid`/`RecordNotDestroyed`, `CanCan::AccessDenied` and `StaleObjectError` all answered 500 instead of 401/404/422/403/409. `spec/lib/concerns/api_exception_management_spec.rb` asserts the *selected* handler (`handler_for_rescue`) per exception, not just the registration. A handler must accept the exception as its one positional argument — `api_error` (keywords only) can't be one, hence `endpoint_invalid!` for `EndpointValidationError` (501). `ActiveRecord::RecordNotUnique` has its own `not_unique!` (422, generic message; the database error, which names tables and index definitions, is only logged): it used to share `invalid!`, which reads `exception.record` — absent on `RecordNotUnique` — so the handler itself raised and every unique-index violation answered 500. `NoMethodError` is deliberately **not** mapped (it used to be → `not_found!`, dead code while shadowed): a code bug answers 500, never a misleading 404.
-- **A blocked destroy (e.g. `dependent: :restrict_with_error` or a `before_destroy` guard) surfaces as a 422 with the record's error messages, not a bare 500** — `ApiExceptionManagement` registers `rescue_from ActiveRecord::RecordNotDestroyed, with: :invalid!` (reusing `RecordInvalid`'s handler, since both exceptions expose the same `.record` interface) for v3's `destroy!`, and v2's `destroy` action passes `@record.errors` into `api_error(status: 422, ...)` on a failed non-bang `destroy`. Same production-only gating as every other `rescue_from` in this concern applies to the v3/`RecordNotDestroyed` path; v2's fix is a plain action-body change and is not gated.
-- **`SerializerFactory` caches by class name** — once `Api::V3::RoleSerializer` (or any `<Model>Serializer`) is set in the `Api::V3` namespace it is never regenerated. Changes to `json_attrs` at runtime are not reflected until the process restarts.
-- **`SerializerFactory` uses `send`, not `public_send`, for `methods:`** — `thecore_backend_commons` injects private methods (`assets_paths`, `rich_content_html`) into every model. Using `public_send` raises `NoMethodError: private method 'assets_paths' called`. This mirrors Rails `as_json` behaviour.
-- **`append_migrations` uses `==`, not `.match`** — the guard in `engine.rb` compares `app.root.to_s == root.to_s`. A substring `.match` would cause the dummy app (a subdirectory of the engine) to falsely match the engine root and skip appending the gem's own migrations.
-- **Custom action responses in v3 are plain JSON, not JSON:API envelopes** — the dispatcher serializes via `body.to_json(json_attrs)` before returning; the v3 action renders `json: result` without wrapping in a `{ data: … }` envelope.
-
-## Test infrastructure
-
-The dummy app (`test/dummy/`) isolates the engine from host-app concerns. It runs on PostgreSQL (the only DB target — never SQLite): `test/dummy/config/boot.rb` keeps `DATABASE_URL`'s server/credentials but always swaps in `model_driven_api_<env>` as the database, because `DATABASE_URL` overrides `database.yml` and in the devcontainer points at the host app's dev DB — which `spec_helper`'s `load` of the dummy `schema.rb` (`force: :cascade`) would otherwise silently recreate table by table. First run: `cd test/dummy && RAILS_ENV=test bundle exec rails db:create`. Its schema is derived from the dependency chain — **never add host-app models or tables to the dummy app**.
-
-- `test/dummy/db/schema.rb` — generated from the dependency chain migrations: `thecore_auth_commons` (users, roles, role_users, permissions chain, ldap_servers), `thecore_settings`, this gem's `used_tokens`, and `active_storage` tables (required because `rails/all` registers ActiveStorage `before_destroy` callbacks on `ActiveRecord::Base`). Regenerate with: `RAILS_ENV=test bundle exec rake db:migrate db:schema:dump` from the engine root.
-- `spec/spec_helper.rb` — loads schema via `load`, sets `SECRET_KEY_BASE`, requires `bcrypt`, patches `Ability#initialize` in `before(:suite)` to grant `can :manage, :all`. Permissions tables exist but are empty in tests; without this patch the user would have no abilities.
-- `test/dummy/config/application.rb` — stubs `action_mailbox`, `action_mailer`, `action_cable`, `assets` on `Rails::Application::Configuration`; adds dummy autoload paths; stubs `has_rich_text` (see below); pre-requires stub models before engine hooks fire.
-- `spec/factories/users.rb` — uses `BCrypt::Password.create(...)` directly (no Devise).
-- `spec/factories/roles.rb` — Role factory; `spec/requests/api/v3/roles_spec.rb` is the v3 integration test (26 tests against `Role`, the canonical model from `thecore_auth_commons`).
-
-**`has_rich_text` stub** — the dummy app stubs ActionText's `has_rich_text` macro via an `ActiveSupport.on_load(:active_record)` block. The stub must actually define the named instance method (returning `nil`) so that `rich_content_html` (injected by `thecore_backend_commons`) can call `rich_content` without raising `NoMethodError`. A no-op `def has_rich_text(*); end` is insufficient.
-
-```ruby
-# test/dummy/config/application.rb — correct stub
-extend(Module.new do
-  def has_rich_text(*names)
-    names.each { |name| define_method(name) { nil } }
-  end
-end) unless respond_to?(:has_rich_text)
-```
-
-## Security scanning
-
-Configured in the GitHub repository settings, not in files:
-
-- **CodeQL** default setup (Ruby, the Actions workflows, and JavaScript/TypeScript where the gem
-  ships any): on every push to `release/3`, on pull requests and weekly. Findings: Security → Code
-  scanning.
-- **Secret scanning with push protection**: a push containing a recognised secret is rejected. It
-  is the only check that blocks anything. If it fires on a real secret, remove it from the commit and
-  rotate the secret; never bypass it.
-- **Dependabot alerts and security updates**, but no `dependabot.yml`, so no routine version-bump
-  pull requests. This gem commits no `Gemfile.lock`, so Dependabot only sees the gemspec and the
-  workflow Actions: CVEs in the resolved Ruby dependencies are caught by `bundler-audit` in the host
-  apps' pipelines, whose `Gemfile.lock` resolves every ATOM.
-- Findings never block a release: GitHub notifies the owner. When one needs work, open a GitHub
-  issue (see Agent skills).
-- `config/brakeman.ignore` (for a local `brakeman` run) records the High `UnsafeReflection` in
-  `public_custom_action?` as a false positive (see Custom actions above). Each entry's `note` says why.
+Tests run on PostgreSQL only, never SQLite. First run: `cd test/dummy && RAILS_ENV=test bundle exec rails db:create`.
+
+## Rules most tasks need
+
+- **UTC-only backend, enforced at boot** (`ModelDrivenApi.enforce_utc!`). Never reintroduce a global `as_json` override on time classes.
+- `params` is `request.parameters`: never use `params.require(...).permit(...)`.
+- `update` and `patch` are the same method.
+- Every runtime dependency needed at class-body evaluation (`pagy`, `jsonapi/serializer`) is `require`d explicitly in `lib/model_driven_api.rb`; add any new runtime dependency's constant to `spec/lib/self_contained_require_spec.rb`.
+- `Api::ResourceAttributeSet.for(model)` is the single source of truth for `json_attrs[:only/:except/:methods/:include]`: never inline it. Compose `json_attrs` with `ModelDrivenApi.smart_merge`, never plain `merge`.
+- `SerializerFactory` uses `send`, not `public_send`, for `methods:`, and caches serializers per class until restart.
+- OpenAPI paths live in `Api::OpenApi::V2/V3`, not in the info controllers.
+- `extract_model` never instantiates the class named by the request path.
+- Public custom actions (`public_action`) skip JWT and CanCan; `params[:current_user_id]` is nil there.
+- Custom-action and v3 raw SQL responses are plain JSON, never JSON:API envelopes.
+- v2 index on an empty collection answers 404 with `[]` (unless `always_ok=true`): a contract, don't change it.
+- `ApiExceptionManagement` handlers are production-only; the `StandardError` catch-all is declared **first**. Never map `NoMethodError`.
+- `append_migrations` compares roots with `==`, never `.match`.
+- **Never add host-app models or tables to the dummy app**; regenerate its schema from the dependency chain.
+- Secret scanning push protection: if it fires on a real secret, remove it and rotate; never bypass it.
+- Keep this file or the `docs/agents/` file it points to accurate whenever the behaviour it describes changes.
 
 ## Agent skills
 

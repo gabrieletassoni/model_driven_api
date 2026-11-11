@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe ApiExceptionManagement do
   # rescue_from registration only happens when Rails.env.production? is truthy AT THE MOMENT
-  # the concern is included (see the gem's own CLAUDE.md: "ApiExceptionManagement rescue_from
+  # the concern is included (see the gem's docs/agents/invariants-and-gotchas.md: "ApiExceptionManagement rescue_from
   # handlers are production-only"). Api::V2/V3::ApplicationController already loaded in this
   # test process with production? false, so we verify the registration in isolation instead,
   # by including the concern into a fresh class with Rails.env stubbed production first.

@@ -225,4 +225,4 @@ Key spec locations:
 
 ## Security scanning and agent skills
 
-See the "Security scanning" and "Agent skills" sections of `CLAUDE.md`. Issues live in this repository's GitHub Issues (`docs/agents/issue-tracker.md`), and the skills come from the `mattpocock-skills` plugin on the host, never vendored here.
+See `docs/agents/security-scanning.md` and the "Agent skills" section of `CLAUDE.md`; topic detail lives in the `docs/agents/` files `CLAUDE.md` points to. Issues live in this repository's GitHub Issues (`docs/agents/issue-tracker.md`), and the skills come from the `mattpocock-skills` plugin on the host, never vendored here.
