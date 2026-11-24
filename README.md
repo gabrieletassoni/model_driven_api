@@ -82,6 +82,8 @@ Every subsequent authenticated request returns a fresh `Token` header (sliding e
 
 Token expiry is controlled by the `SESSION_TIMEOUT_IN_MINUTES` env var (default: 31 minutes).
 
+A locked user (`users.locked`) gets the same answer as a wrong password, and a token issued before the lock answers `401` and is not renewed.
+
 When `ALLOW_MULTISESSIONS=false`, each login invalidates all previous tokens for the user (stored in the `used_tokens` table).
 
 ### Bearer token usage (v2 and v3)

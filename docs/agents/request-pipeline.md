@@ -35,7 +35,7 @@
 
 Every API request goes through `Api::V2::ApplicationController`:
 
-1. `authenticate_request` — resolves `@current_user` via pluggable authorization headers (`Settings.ns(:security).allowed_authorization_headers`) or JWT bearer token. Writes a fresh JWT to the `Token` response header on every successful request (sliding expiration).
+1. `authenticate_request` — resolves `@current_user` via pluggable authorization headers (`Settings.ns(:security).allowed_authorization_headers`) or JWT bearer token. Writes a fresh JWT to the `Token` response header on every successful request (sliding expiration). A locked user's token is refused (401, no renewal: `docs/agents/jwt-raw-sql-info-openapi.md`).
 2. `extract_model` — resolves `@model` from `params[:ctrl]`, path, or controller name (in that order). Pulls `@body` from singular/plural model param.
 3. `find_record` — called only for show/update/destroy; finds by `params[:id]`.
 4. CRUD actions (`index`, `show`, `create`, `update`/`patch`, `destroy`, `update_multi`, `destroy_multi`) — all delegate authorization to CanCan (`authorize! :action, @model`).

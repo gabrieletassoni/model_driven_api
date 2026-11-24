@@ -10,4 +10,10 @@ class User < ApplicationRecord
     return nil if encrypted_password.blank?
     BCrypt::Password.new(encrypted_password).is_password?(password) ? self : nil
   end
+
+  # Mirrors thecore_auth_commons User#active_for_authentication? (>= 3.7.0, Devise's own is
+  # true): a locked user may not authenticate.
+  def active_for_authentication?
+    !locked?
+  end
 end

@@ -40,7 +40,9 @@ class AuthenticateUser
         #Try to authenticate the user against LDAP if user is not present at this point
         user = Ldap::Authenticator.new(email: email, password: password).authenticate if user.blank?
 
-        raise AccessDenied unless user.present?
+        # A locked user is refused like a wrong password, whichever way they authenticated
+        # (User#active_for_authentication?, thecore_auth_commons; Odoo #6051).
+        raise AccessDenied unless user.present? && user.active_for_authentication?
         
         return user
     end

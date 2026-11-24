@@ -16,7 +16,8 @@ class AuthorizeApiRequest
     def api_user
         Rails.logger.debug "AuthorizeApiRequest: api_user -> #{decoded_auth_token}"
         @api_user ||= (decoded_auth_token.blank? ? nil : User.find(decoded_auth_token[:user_id]))
-        unless @api_user.blank?
+        # A JWT still valid from before a lock gets no answer and no renewed token (Odoo #6051).
+        if @api_user.present? && @api_user.active_for_authentication?
             return @api_user
         else
             errors.add(:token, "Invalid or Expired token")

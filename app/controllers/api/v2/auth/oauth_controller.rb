@@ -11,7 +11,8 @@ module Api::V2::Auth
                                                    info.last_name,
                                                    auth.provider)
 
-      unless user
+      # A locked user gets the same answer as an unknown one (Odoo #6051).
+      unless user&.active_for_authentication?
         render json: { error: "User not registered" }, status: :unauthorized
         return
       end
@@ -61,7 +62,7 @@ module Api::V2::Auth
       email = user_info["mail"] || user_info["email"] || user_info["userPrincipalName"]
       user = User.find_by(email: email)
 
-      if user.nil?
+      unless user&.active_for_authentication?
         return render json: { error: "User not registered" }, status: :unauthorized
       end
 
