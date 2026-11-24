@@ -2,7 +2,7 @@ require "rails_helper"
 
 # `a` is the short alias of `json_attrs`, the serialization options (only, except, methods,
 # include) a caller may send in place of the model's own. Anything but a hash answers 400 naming
-# the parameter, in every environment, instead of a 500 (MyTask Odoo 6258).
+# the parameter, in every environment, instead of a 500 (host Odoo #6258).
 RSpec.describe "API v2 json_attrs parameter", type: :request do
   let(:user) { create(:user) }
   let(:headers) { auth_headers_for(user) }
@@ -27,6 +27,20 @@ RSpec.describe "API v2 json_attrs parameter", type: :request do
     get "/api/v2/roles?a[]=id", headers: headers
 
     expect(response).to have_http_status(:bad_request)
+  end
+
+  it "answers 400 on the users endpoint" do
+    get "/api/v2/users", params: { a: "1" }, headers: headers
+
+    expect(response).to have_http_status(:bad_request)
+  end
+
+  it "leaves a plain destroy alone, which never reads a" do
+    role = Role.find_by!(name: "Reader")
+    delete "/api/v2/roles/#{role.id}?a=1", headers: headers
+
+    expect(response).to have_http_status(:ok)
+    expect(Role.exists?(role.id)).to be(false)
   end
 
   it "answers 400 on show too" do

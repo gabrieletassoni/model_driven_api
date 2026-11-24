@@ -11,7 +11,7 @@ class Api::V2::ApplicationController < ActionController::API
   before_action :extract_model
   # Before anything is saved: create, update and custom actions read json_attrs only after
   # their side effects.
-  before_action :reject_non_hash_json_attrs, only: [:index, :show, :create, :update, :patch, :destroy]
+  before_action :reject_non_hash_json_attrs, if: :reads_json_attrs?
   before_action :find_record, only: [:show, :destroy, :update, :patch]
 
   # GET :controller/
@@ -252,19 +252,29 @@ class Api::V2::ApplicationController < ActionController::API
     render json: existing.to_json(json_attrs), status: 200
   end
 
-  # `a` (short alias) and `json_attrs` carry serialization options as a hash
-  # (?a[only][]=id); a scalar or an array answers 400 naming the parameter, in every
-  # environment (the ApiExceptionManagement handlers are production-only).
+  # The request parameters json_attrs reads its options from: `a` is the short alias.
+  JSON_ATTRS_PARAMS = %i[a json_attrs].freeze
+
+  # The actions that serialize through json_attrs: every custom action, and the CRUD ones that
+  # render the record(s). A new action calling json_attrs belongs here, or a scalar `a` 500s it.
+  def reads_json_attrs?
+    custom_action? || %w[index show create update patch].include?(action_name)
+  end
+
+  # `a` and `json_attrs` carry serialization options as a hash (?a[only][]=id); a scalar or an
+  # array answers 400 naming the parameter, in every environment (the ApiExceptionManagement
+  # handlers are production-only).
   def reject_non_hash_json_attrs
-    name = [:a, :json_attrs].find { |key| params[key].present? && !params[key].is_a?(Hash) }
+    name = JSON_ATTRS_PARAMS.find { |key| params[key].present? && !params[key].is_a?(Hash) }
     api_error(status: 400, errors: "The #{name} parameter must be a hash, e.g. #{name}[only][]=id") if name
   end
 
   def json_attrs
     # In order of importance: if you send the configuration via querystring you are ok
     # has precedence over if you have setup the json_attrs in the model concern
-    from_params = params[:a].deep_symbolize_keys unless params[:a].blank?
-    from_params = params[:json_attrs].deep_symbolize_keys unless params[:json_attrs].blank?
+    # (JSON_ATTRS_PARAMS order: json_attrs wins over a; reject_non_hash_json_attrs ran first).
+    from_params = nil
+    JSON_ATTRS_PARAMS.each { |key| from_params = params[key].deep_symbolize_keys if params[key].present? }
     from_params.presence || @json_attrs.presence || @model.json_attrs.presence || {} rescue {}
   end
 

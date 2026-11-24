@@ -1,8 +1,5 @@
 class Api::V3::ApplicationController < Api::V2::ApplicationController
   include Pagy::Backend
-  # v3 serializes through SerializerFactory and never reads `a`/`json_attrs`; only its custom
-  # actions (plain JSON, via check_for_custom_action) do.
-  skip_before_action :reject_non_hash_json_attrs, unless: :custom_action?
 
   def index
     authorize! :index, @model unless custom_action?
@@ -67,6 +64,12 @@ class Api::V3::ApplicationController < Api::V2::ApplicationController
   end
 
   private
+
+  # v3 serializes through SerializerFactory and never reads `a`/`json_attrs`; only its custom
+  # actions (plain JSON, via check_for_custom_action) do.
+  def reads_json_attrs?
+    custom_action?
+  end
 
   # v2's read check, with a JSON:API envelope.
   def render_existing(existing)

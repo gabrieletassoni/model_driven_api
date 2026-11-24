@@ -3,7 +3,7 @@
 ## [3.13.3] - 2026-11-24
 
 ### Fixed
-- **A non-hash `a`/`json_attrs` answers 400, not 500** (host Odoo #6258). `?a=1` or `?json_attrs=1` raised `NoMethodError` in `json_attrs`, after create, update and custom actions had already saved. A `before_action` on index, show, create, update/patch and destroy now answers 400 `{"error": "The a parameter must be a hash, e.g. a[only][]=id"}` in every environment, before any side effect. Hash forms, an empty value and unknown parameters behave as before; v3 standard actions, which never read `a`, are unaffected.
+- **A non-hash `a`/`json_attrs` answers 400, not 500** (host Odoo #6258). `?a=1` or `?json_attrs=1` raised `NoMethodError` in `json_attrs`, after create, update and custom actions had already saved. A `before_action` on every action that serializes through `json_attrs` (index, show, create, update/patch and all custom actions) now answers 400 `{"error": "The a parameter must be a hash, e.g. a[only][]=id"}` in every environment, before any side effect. Hash forms, an empty value and unknown parameters behave as before; a plain destroy and v3 standard actions, which never read `a`, are unaffected.
 
 ## [3.13.2] - 2026-11-24
 
