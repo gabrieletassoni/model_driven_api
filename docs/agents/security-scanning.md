@@ -8,7 +8,7 @@ Configured in the GitHub repository settings, not in files:
   ships any): on every push to `release/3`, on pull requests and weekly. Findings: Security → Code
   scanning.
 - **Secret scanning with push protection**: a push containing a recognised secret is rejected. It
-  is the only check that blocks anything. If it fires on a real secret, remove it from the commit and
+  is the only security check that blocks anything (a red test suite blocks the gem publish). If it fires on a real secret, remove it from the commit and
   rotate the secret; never bypass it.
 - **Dependabot alerts and security updates**, but no `dependabot.yml`, so no routine version-bump
   pull requests. This gem commits no `Gemfile.lock`, so Dependabot only sees the gemspec and the
