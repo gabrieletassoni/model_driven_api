@@ -6,11 +6,13 @@ git_source(:github) { |repo| "https://github.com/#{repo}.git" }
 # development dependencies will be added by default to the :development group.
 gemspec
 
-# The Rails line this suite is tested on, the host apps' one (Odoo #6088): Rails 7.2.4, which
-# runs on json 3 (the old `json < 3.0` pin held Rails back at 7.2.3.x), and minitest 5 (Rails 7.2's
-# test runner breaks on minitest 6). Without these pins a fresh CI resolution drifts: one run
-# picked Rails 8.1, others Rails 7.2.3 with minitest 6. Odoo #6089 turns this into a 7.2/8.1 matrix.
-gem "railties", "~> 7.2.4" # pins the whole Rails line without adding frameworks the dummy app lacks
+# The Rails line this suite runs on (Odoo #6089, ADR 0033): Rails 8.1, the only one CI tests.
+# The gem itself keeps declaring Rails 7.2 (dual support, best effort): `RAILS_VERSION=7.2
+# bundle update railties actionmailer && RAILS_VERSION=7.2 bundle exec rspec` runs the same suite
+# on 7.2.4 locally. Both lines are pinned because a fresh CI resolution otherwise drifts
+# (Odoo #6088); minitest stays on 5, since Rails 7.2's test runner breaks on minitest 6.
+RAILS_LINE = ENV["RAILS_VERSION"] == "7.2" ? ["~> 7.2.4"] : ["~> 8.1", ">= 8.1.4.1"]
+gem "railties", *RAILS_LINE # pins the whole Rails line without adding frameworks the dummy app lacks
 gem "minitest", "~> 5.25"
 
 # Declare any dependencies that are still in development here instead of in
@@ -48,5 +50,5 @@ group :test do
   gem 'factory_bot_rails', '~> 6.4'
   # JUnit XML report in CI: rspec --format RspecJunitFormatter --out <file>
   gem 'rspec_junit_formatter', '~> 0.6'
-  gem 'actionmailer', '~> 7.2'
+  gem 'actionmailer', *RAILS_LINE
 end

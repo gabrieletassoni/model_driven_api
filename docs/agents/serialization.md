@@ -12,6 +12,8 @@ Attribute resolution is delegated to `Api::ResourceAttributeSet.for(model_class,
 
 `json_attrs[:include]` — each entry is a bare symbol (`:assoc`) or a hash (`assoc: { only: [:id] }`). A nested serializer is generated as `<AssocModel>For<ParentModel>Serializer`, registered with the correct macro (`has_many`/`has_one`/`belongs_to`) from `reflect_on_all_associations`. Nested serializers are always flat — `include:` is not processed recursively — to prevent infinite loops on circular associations (e.g. `Role ↔ User`).
 
+`config/initializers/auto_include_json.rb` (`AutoIncludeJson`) preloads the `include:` associations before `to_json`/`as_json` on relations and records and passes on a sanitized **copy** of the options: never mutate the options hash there, because Rails 8.1's JSON encoder hands `as_json` a frozen one and the caller's hash is usually the model's shared `json_attrs` (`spec/initializers/auto_include_json_spec.rb`).
+
 `extract_includes(include_spec)` is still a public class method (specs test it directly); it delegates to `Api::ResourceAttributeSet#parsed_includes`.
 
 ```ruby

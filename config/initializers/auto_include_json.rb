@@ -84,29 +84,30 @@ module AutoIncludeInstanceJson
   include AutoIncludeJson
 
   def to_json(options = nil)
-    preload_and_sanitize!(options)
-    super
+    super(preload_and_sanitize(options))
   end
 
   def as_json(options = nil)
-    preload_and_sanitize!(options)
-    super
+    super(preload_and_sanitize(options))
   end
 
   private
 
-  def preload_and_sanitize!(options)
-    Rails.logger.debug "AutoIncludeJson - Instance JSON preload_and_sanitize! from #{caller_locations(1,1).first.label}"
-    return unless options.is_a?(Hash) && options[:include]
+  # Returns a sanitized copy of the options, never mutating them: Rails 8.1's JSON encoder hands
+  # as_json a frozen options hash, and the caller's hash is often a model's shared json_attrs.
+  def preload_and_sanitize(options)
+    Rails.logger.debug "AutoIncludeJson - Instance JSON preload_and_sanitize from #{caller_locations(1,1).first.label}"
+    return options unless options.is_a?(Hash) && options[:include]
 
     includes_hash = build_includes(options[:include])
     sanitized_includes = sanitize_includes(options[:include])
-    options[:include] = sanitized_includes
 
     ActiveRecord::Associations::Preloader.new(
       records: [self],
       associations: includes_hash
     ).call
+
+    options.merge(include: sanitized_includes)
   end
 
 end

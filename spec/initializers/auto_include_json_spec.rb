@@ -27,6 +27,16 @@ RSpec.describe "AutoIncludeJson monkey patch" do
     end
   end
 
+  # Rails 8.1's JSON encoder hands as_json a frozen options hash; json_attrs is shared per model.
+  describe "User#as_json with frozen options" do
+    it "serializes the includes and leaves the caller's options untouched" do
+      options = json_attrs.deep_dup.freeze
+      parsed = user.reload.as_json(options)
+      expect(parsed["roles"].map { |r| r["name"] }).to match_array(%w[Admin Manager])
+      expect(options).to eq(json_attrs)
+    end
+  end
+
   describe "User.all.to_json with includes" do
     it "eager loads associations and serializes cleanly" do
       json = User.all.to_json(json_attrs)
