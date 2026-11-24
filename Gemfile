@@ -45,5 +45,7 @@ gem 'pagy', '~> 9.0'
 group :test do
   gem 'rspec-rails', '~> 7.0'
   gem 'factory_bot_rails', '~> 6.4'
+  # JUnit XML report in CI: rspec --format RspecJunitFormatter --out <file>
+  gem 'rspec_junit_formatter', '~> 0.6'
   gem 'actionmailer', '~> 7.2'
 end

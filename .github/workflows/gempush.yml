@@ -1,57 +1,130 @@
-name: Ruby Gem
+name: Test and publish
+
+# One workflow, two jobs (Odoo #6088): every push and pull request on release/3 runs the test
+# suite on PostgreSQL 15 (never SQLite); on a push, the gem is tagged and published only if the
+# tests are green ("needs: test"). The JUnit report of a published version is attached to its
+# GitHub release, so it stays downloadable for as long as the release exists.
 
 on:
   push:
-    branches:
-      - release/3
+    branches: [ release/3 ]
+  pull_request:
+    branches: [ release/3 ]
 
 jobs:
-  build:
-    name: Build + Publish
+  test:
+    name: Test suite
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:15-bookworm
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    # test/dummy/config/database.yml reads PGHOST/PGPORT/PGUSER/PGPASSWORD.
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      RAILS_ENV: test
+      CI: true
+      JUNIT_REPORT_DIR: ${{ github.workspace }}/tmp/junit
+
     steps:
-    - uses: actions/checkout@v3
-    # Check the version if it already exists as a tag, if so set a variable to use as a condition in order 
-    # to skip next steps without failing the job, using Env File to store the variable
-    - name: Check if version already exists
-      id: check_version
-      run: |
-        version=$(grep -oP 'VERSION = "\K[^"]+' lib/*/version.rb | awk -F'.' '{print $1"."$2"."$3}')
-        git fetch --unshallow --tags
-        echo $?
-        if git tag --list | grep -q $version;
-        then
-          echo "Version $version already exists"
-          echo "version_exists=true" >> "$GITHUB_ENV"
-        else
-          echo "Version $version does not exist"
-          echo "version_exists=false" >> "$GITHUB_ENV"
-        fi
-    # If the version already exists, skip the next steps
-    - uses: ruby/setup-ruby@v1
-      if: env.version_exists == 'false'
-      with:
-        ruby-version: '3' # Not needed with a .ruby-version file
-        bundler-cache: true # runs 'bundle install' and caches installed gems automatically
-    # sets the git tag to the same version as the gem
-    - name: Set git tag
-      if: env.version_exists == 'false'
-      run: |
-        git config --local user.email "noreply@alchemic.it"
-        git config --local user.name "AlchemicIT"
-        version=$(grep -oP 'VERSION = "\K[^"]+' lib/*/version.rb | awk -F'.' '{print $1"."$2"."$3}')
-        git tag -a $version -m "Version $version"
-        git push --tags
-        
-    - name: Publish to RubyGems
-      if: env.version_exists == 'false'
-      run: |
-        mkdir -p $HOME/.gem
-        touch $HOME/.gem/credentials
-        chmod 0600 $HOME/.gem/credentials
-        printf -- "---\n:rubygems_api_key: ${GEM_HOST_API_KEY}\n" > $HOME/.gem/credentials
-        gem build *.gemspec
-        gem push *.gem
-      env:
-        GEM_HOST_API_KEY: ${{secrets.RUBYGEMS_AUTH_TOKEN}}
+      - uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true # runs 'bundle install' and caches installed gems automatically
+
+      - name: Create the test database
+        run: bin/rails db:create
+
+      - name: Run test suite
+        run: bundle exec rspec --format progress --format RspecJunitFormatter --out "$JUNIT_REPORT_DIR/rspec.xml"
+
+      - name: Keep the JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit
+          path: tmp/junit/
+          if-no-files-found: error
+
+  publish:
+    name: Tag + Publish
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the version tag and create its release
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # A version that already has its tag was published before: skip the rest without failing.
+      - name: Check if version already exists
+        run: |
+          version=$(grep -oP 'VERSION = "\K[^"]+' lib/*/version.rb)
+          echo "version=$version" >> "$GITHUB_ENV"
+          if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
+            echo "Version $version already exists"
+            echo "version_exists=true" >> "$GITHUB_ENV"
+          else
+            echo "Version $version does not exist"
+            echo "version_exists=false" >> "$GITHUB_ENV"
+          fi
+
+      - uses: ruby/setup-ruby@v1
+        if: env.version_exists == 'false'
+        with:
+          ruby-version: '3.3'
+
+      - name: Set git tag
+        if: env.version_exists == 'false'
+        run: |
+          git config --local user.email "noreply@alchemic.it"
+          git config --local user.name "AlchemicIT"
+          git tag -a "$version" -m "Version $version"
+          git push origin "refs/tags/$version"
+
+      - name: Get the JUnit report
+        if: env.version_exists == 'false'
+        uses: actions/download-artifact@v4
+        with:
+          name: junit
+          path: junit
+
+      - name: Create the release with the JUnit report
+        if: env.version_exists == 'false'
+        run: |
+          for f in junit/*.xml; do mv "$f" "junit/model_driven_api-$version-$(basename "$f")"; done
+          gh release create "$version" --verify-tag --title "$version" \
+            --notes "Test suite green on PostgreSQL 15 (Ruby 3.3). JUnit report attached." junit/*.xml
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Publish to RubyGems
+        if: env.version_exists == 'false'
+        run: |
+          mkdir -p $HOME/.gem
+          touch $HOME/.gem/credentials
+          chmod 0600 $HOME/.gem/credentials
+          printf -- "---\n:rubygems_api_key: ${GEM_HOST_API_KEY}\n" > $HOME/.gem/credentials
+          gem build *.gemspec
+          gem push *.gem
+        env:
+          GEM_HOST_API_KEY: ${{secrets.RUBYGEMS_AUTH_TOKEN}}
