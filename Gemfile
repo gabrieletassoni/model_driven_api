@@ -6,11 +6,12 @@ git_source(:github) { |repo| "https://github.com/#{repo}.git" }
 # development dependencies will be added by default to the :development group.
 gemspec
 
-# json 3.0+ turns the long-tolerated, deprecated `quirks_mode:` option into a hard ArgumentError;
-# activesupport (Rails 7.2's JSON encoder) still passes it on every JSON.generate call, so any
-# request that commits a session cookie crashes. Same fix as the host app's own Gemfile — pin
-# until Rails 8 ships a compatible activesupport release.
-gem 'json', '< 3.0'
+# The Rails line this suite is tested on, the host apps' one (Odoo #6088): Rails 7.2.4, which
+# runs on json 3 (the old `json < 3.0` pin held Rails back at 7.2.3.x), and minitest 5 (Rails 7.2's
+# test runner breaks on minitest 6). Without these pins a fresh CI resolution drifts: one run
+# picked Rails 8.1, others Rails 7.2.3 with minitest 6. Odoo #6089 turns this into a 7.2/8.1 matrix.
+gem "railties", "~> 7.2.4" # pins the whole Rails line without adding frameworks the dummy app lacks
+gem "minitest", "~> 5.25"
 
 # Declare any dependencies that are still in development here instead of in
 # your gemspec. These might include edge Rails or gems from your path or
