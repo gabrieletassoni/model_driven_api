@@ -35,6 +35,13 @@ RSpec.describe "AutoIncludeJson monkey patch" do
       expect(parsed["roles"].map { |r| r["name"] }).to match_array(%w[Admin Manager])
       expect(options).to eq(json_attrs)
     end
+
+    it "does the same through to_json" do
+      options = json_attrs.deep_dup.freeze
+      parsed = JSON.parse(user.reload.to_json(options))
+      expect(parsed["roles"].map { |r| r["name"] }).to match_array(%w[Admin Manager])
+      expect(options).to eq(json_attrs)
+    end
   end
 
   describe "User.all.to_json with includes" do

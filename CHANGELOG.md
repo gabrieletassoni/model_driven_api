@@ -6,7 +6,7 @@
 - **JSON rendering with `include:` works on Rails 8.1** (host Odoo #6089). `AutoIncludeJson` wrote the sanitized includes back into the options hash it received, and Rails 8.1's JSON encoder passes `as_json` a frozen one: every `to_json`/`as_json` with `include:` raised `FrozenError` (v2 create/index, v3 authenticate, any host `record.to_json(json_attrs)`). It now passes a sanitized copy on and leaves the caller's options, often a model's shared `json_attrs`, untouched. Same output on Rails 7.2.
 
 ### Changed
-- The test suite and its CI run on Rails 8.1 (`~> 8.1, >= 8.1.4.1`, minitest 5); `RAILS_VERSION=7.2` runs the same suite on 7.2.4 locally (best effort, not in CI). The gem keeps declaring Rails 7.2 (dual support, host ADR 0033).
+- The test suite and its CI run on Rails 8.1 (`~> 8.1, >= 8.1.4.1`, minitest 5); `RAILS_VERSION=7.2` runs the same suite on 7.2.4 locally (best effort, not in CI). The gemspec names no Rails version: dual support (host ADR 0033) means its dependencies keep resolving on 7.2 too.
 
 ## [3.13.1] - 2026-10-29
 
