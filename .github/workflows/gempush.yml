@@ -63,7 +63,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    name: Tag + Publish
+    name: Publish + Tag
     needs: test
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -93,14 +93,6 @@ jobs:
         with:
           ruby-version: '3.3'
 
-      - name: Set git tag
-        if: env.version_exists == 'false'
-        run: |
-          git config --local user.email "noreply@alchemic.it"
-          git config --local user.name "AlchemicIT"
-          git tag -a "$version" -m "Version $version"
-          git push origin "refs/tags/$version"
-
       - name: Get the JUnit report
         if: env.version_exists == 'false'
         uses: actions/download-artifact@v4
@@ -108,15 +100,8 @@ jobs:
           name: junit
           path: junit
 
-      - name: Create the release with the JUnit report
-        if: env.version_exists == 'false'
-        run: |
-          for f in junit/*.xml; do mv "$f" "junit/model_driven_api-$version-$(basename "$f")"; done
-          gh release create "$version" --verify-tag --title "$version" \
-            --notes "Test suite green on PostgreSQL 15 (Ruby 3.3). JUnit report attached." junit/*.xml
-        env:
-          GH_TOKEN: ${{ github.token }}
-
+      # The gem goes first, the tag after: a failed push leaves no tag behind, so re-running
+      # the workflow retries it (a tag pushed before a failed push would skip it for good).
       - name: Publish to RubyGems
         if: env.version_exists == 'false'
         run: |
@@ -128,3 +113,21 @@ jobs:
           gem push *.gem
         env:
           GEM_HOST_API_KEY: ${{secrets.RUBYGEMS_AUTH_TOKEN}}
+
+      - name: Set git tag
+        if: env.version_exists == 'false'
+        run: |
+          git config --local user.email "noreply@alchemic.it"
+          git config --local user.name "AlchemicIT"
+          git tag -a "$version" -m "Version $version"
+          git push origin "refs/tags/$version"
+
+      - name: Create the release with the JUnit report
+        if: env.version_exists == 'false'
+        run: |
+          gem_name=$(basename *.gemspec .gemspec)
+          for f in junit/*.xml; do mv "$f" "junit/$gem_name-$version-$(basename "$f")"; done
+          gh release create "$version" --verify-tag --title "$version" \
+            --notes "Test suite green on PostgreSQL 15 (Ruby 3.3). JUnit report attached." junit/*.xml
+        env:
+          GH_TOKEN: ${{ github.token }}
