@@ -1,3 +1,3 @@
 module ModelDrivenApi
-  VERSION = "3.15.0".freeze
+  VERSION = "3.16.0".freeze
 end
