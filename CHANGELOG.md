@@ -1,5 +1,16 @@
 ## [Unreleased]
 
+## [3.15.0] - 2026-11-25
+
+### Security
+- **`raw/sql` runs one plain SELECT, read-only, with limits** (host ADR 0048, Odoo #5835). Every authenticated user can still call it. PostgreSQL's own parser (`pg_query` >= 6.2.5, a new dependency) accepts exactly one `SELECT` without `INTO`, `FOR UPDATE/SHARE`, data-modifying statements or side-effect functions. The query runs through `select_all` in a `READ ONLY` transaction of its own with a statement timeout, lock timeout, `work_mem` and `temp_file_limit`, is always rolled back, and leaves no session advisory lock behind. Limits: `RAW_SQL_*` ENV (README). A correct `SELECT` answers exactly as before.
+- Errors are `{ "error", "reason"[, "sqlstate"] }` and never carry PostgreSQL's message: v2 400 as before, v3 422 (413 for a result over the cap) instead of 400.
+- `RAW_SQL_ENFORCE=false` (per installation, while a frontend is verified): a rejected query is logged as an `IntegrationLog` warning, when the host has that model, and run the old way.
+- **The OAuth token exchange `POST /api/v2/auth/jwt` and `/api/v3/auth/jwt` is removed** (host Odoo #5860), with `Api::V3::Auth::OauthController`. No frontend used it. The OmniAuth callback is unchanged.
+
+### Fixed
+- A path that names no class (`POST /api/v2/no_such_things`, or a custom action on it) answers 404 instead of 500.
+
 ## [3.14.1] - 2026-11-25
 
 ### Removed
