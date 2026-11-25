@@ -51,6 +51,10 @@ Gem::Specification.new do |spec|
   # Pagination (v3)
   spec.add_dependency 'pagy', '~> 9.0'
 
+  # PostgreSQL's own parser: raw/sql accepts exactly one plain SELECT (host ADR 0048, Odoo #5835).
+  # >= 6.2.5 fixes GHSA-6ggm-xmc9-8ffg (heap overflow in normalize, which we never call anyway).
+  spec.add_dependency 'pg_query', '>= 6.2.5', '< 7'
+
   spec.add_development_dependency 'pg', '~> 1.1'
   spec.add_development_dependency 'rspec-rails', '~> 7.0'
   spec.add_development_dependency 'factory_bot_rails', '~> 6.4'

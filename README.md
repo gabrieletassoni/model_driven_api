@@ -20,7 +20,7 @@ A Rails engine that auto-generates a versioned REST API by introspecting your Ac
 - OAuth2 support: Google Workspace and Microsoft Entra ID
 - LDAP / Active Directory authentication (via host app headers)
 - Custom actions on any model — two patterns supported (v2 and v3)
-- SELECT-only raw SQL endpoint (v2 and v3)
+- Raw SQL endpoint (v2 and v3): one plain SELECT, read-only, with limits
 - Self-generated OpenAPI 3.0 / Swagger documentation (v2 and v3)
 - JSON:API sideloading with hybrid defaults (`json_attrs[:include]` + `?include=` override)
 - JSON:API sparse fieldsets (`?fields[type]=f1,f2`)
@@ -467,7 +467,19 @@ concern at all keeps the bare default.
 
 ## Raw SQL endpoint
 
-Executes read-only SELECT queries. Authentication required. Only `SELECT` (and `WITH … SELECT`) statements are allowed; DDL and DML are rejected with HTTP 400.
+Executes exactly one plain `SELECT` (CTEs included), sent by any authenticated user. PostgreSQL's own parser (`pg_query`) refuses several statements, `SELECT INTO`, `FOR UPDATE/SHARE`, any `INSERT/UPDATE/DELETE/MERGE` (also inside a CTE) and side-effect functions (`set_config`, advisory locks, large-object writes, `pg_sleep*`, `pg_notify`, backend signalling). The query runs in its own `READ ONLY` transaction with limits and is always rolled back. Errors never carry PostgreSQL's message.
+
+| ENV | Default | |
+|---|---|---|
+| `RAW_SQL_STATEMENT_TIMEOUT` | `15s` | `SET LOCAL statement_timeout` |
+| `RAW_SQL_LOCK_TIMEOUT` | `1s` | `SET LOCAL lock_timeout` |
+| `RAW_SQL_WORK_MEM` | `16MB` | `SET LOCAL work_mem` |
+| `RAW_SQL_TEMP_FILE_LIMIT` | `256MB` | `SET LOCAL temp_file_limit` (only when the app is superuser) |
+| `RAW_SQL_MAX_QUERY_BYTES` | `102400` | longer queries are rejected (`query_too_large`) |
+| `RAW_SQL_MAX_RESULT_BYTES` | `10485760` | larger results fail (`result_too_large`) |
+| `RAW_SQL_ENFORCE` | `true` | `false`: a rejection (never a timeout or failure) is logged (`IntegrationLog` warning when the host has that model) and the query runs again the old way. A rollout switch for frontends not verified yet. |
+
+Error body: `{ "error": "raw_sql_rejected" | "raw_sql_failed", "reason": "…", "sqlstate": "…" }` (`sqlstate` only for `query_error`). Reasons: `only_single_select`, `data_modifying_statement`, `locking_clause`, `function_not_allowed`, `syntax_error`, `query_too_large`, `not_permitted`, `timeout`, `query_error`, `result_too_large`, `nested_transaction`. v2 answers every error with 400; v3 with 422, or 413 for `result_too_large`. A missing `query` is 400 `{ "error": "Query is required" }` in both.
 
 ### v2 — requires `result` key
 
@@ -477,7 +489,7 @@ Authorization: Bearer <jwt>
 Content-Type: application/json
 
 {
-  "query": "SELECT json_agg(u) AS result FROM users u WHERE u.admin = true"
+  "query": "SELECT json_agg(r) AS result FROM (SELECT id, name FROM roles) r"
 }
 ```
 

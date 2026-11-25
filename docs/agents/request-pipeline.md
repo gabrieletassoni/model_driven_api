@@ -18,7 +18,7 @@
 | `authentication_controller.rb` | `POST /api/v2/authenticate` — email/password → JWT |
 | `auth/oauth_controller.rb` | OAuth2 callback + token exchange for Google/Microsoft. `callback` takes the identity only from `request.env['omniauth.auth']` (set by the OmniAuth middleware on `/auth/:provider/callback`, which routes here directly, not via redirect), never from params (Odoo #5837); `exchange_token` asks the provider's userinfo endpoint and only logs in existing users |
 | `info_controller.rb` | `/api/v2/info/*` — version, roles, schema, dsl, swagger, openapi, ntp, heartbeat, translations, settings |
-| `raw_controller.rb` | `POST /api/v2/raw/sql` — safe SELECT-only SQL executor |
+| `raw_controller.rb` | `POST /api/v2/raw/sql` — one plain SELECT through `SafeSqlExecutor` (READ ONLY, limits, errors 400 `{error, reason}`) |
 
 ## Controllers (`app/controllers/api/v3/`)
 
@@ -28,7 +28,7 @@
 | `authentication_controller.rb` | Thin subclass of v2 auth controller — provides `POST /api/v3/authenticate` |
 | `auth/oauth_controller.rb` | Thin subclass of v2 OAuth controller — exposes only `exchange_token` via `POST /api/v3/auth/jwt` (registered only when `oauth_vars?`); `callback`/`failure` stay v2-only (OmniAuth middleware is hardcoded to v2 path) |
 | `info_controller.rb` | Inherits v2 info — overrides only `openapi`/`swagger` to call `Api::OpenApi::V3`; all other info actions inherited unchanged |
-| `raw_controller.rb` | `GET/POST /api/v3/raw/sql` — same SELECT-only guard; returns **plain JSON array** (deliberate JSON:API exception) |
+| `raw_controller.rb` | `GET/POST /api/v3/raw/sql` — same `SafeSqlExecutor`, errors 422/413; returns **plain JSON array** (deliberate JSON:API exception) |
 | `users_controller.rb` | Thin subclass of v3 application controller — adds `check_demoting` guard on `update`/`patch`/`destroy`; prevents a user from modifying their own `admin` or `locked` flags (same constraint as v2) |
 
 ## `Api::V2::ApplicationController` — the core

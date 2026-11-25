@@ -49,7 +49,7 @@ lib/
     v3/
       serializer_factory.rb       # lazy JSONAPI::Serializer generation; delegates attrs to ResourceAttributeSet
   json_web_token.rb               # JWT encode/decode
-  safe_sql_executor.rb            # SELECT-only SQL guard
+  safe_sql_executor.rb            # raw/sql: pg_query check + READ ONLY run
   non_crud_endpoints.rb           # base class for Endpoints::* modules
   endpoint_validation_error.rb
   concerns/

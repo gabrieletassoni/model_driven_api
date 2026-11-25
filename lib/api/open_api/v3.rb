@@ -62,6 +62,15 @@ module Api
           "type" => "array",
           "items" => { "type" => "object", "additionalProperties" => true },
         }
+        error_schema = {
+          "type" => "object",
+          "properties" => { "error" => { "type" => "string" }, "reason" => { "type" => "string" }, "sqlstate" => { "type" => "string" } },
+        }
+        error_responses = {
+          "400" => { "description" => "Query is required" },
+          "413" => { "description" => "Result over RAW_SQL_MAX_RESULT_BYTES", "content" => { "application/json" => { "schema" => error_schema } } },
+          "422" => { "description" => "Rejected (raw_sql_rejected) or failed (raw_sql_failed); reason, and sqlstate for a query_error. Never PostgreSQL's message", "content" => { "application/json" => { "schema" => error_schema } } },
+        }
         query_param = {
           "name" => "query",
           "in" => "query",
@@ -78,23 +87,23 @@ module Api
             "get" => {
               "summary" => "Raw SQL (GET)",
               "tags" => ["Raw"],
-              "description" => "Execute a SELECT query. Returns rows as a plain JSON array (not JSON:API).",
+              "description" => "Execute exactly one plain SELECT (pg_query-checked) in a READ ONLY transaction with timeouts, always rolled back. Returns rows as a plain JSON array (not JSON:API).",
               "security" => [{ "bearerAuth" => [] }],
               "parameters" => [query_param],
               "responses" => {
                 "200" => { "description" => "Rows", "content" => { "application/json" => { "schema" => response_schema } } },
-                "400" => { "description" => "Only SELECT statements are allowed" },
+                **error_responses,
               },
             },
             "post" => {
               "summary" => "Raw SQL (POST)",
               "tags" => ["Raw"],
-              "description" => "Execute a SELECT query. Returns rows as a plain JSON array (not JSON:API).",
+              "description" => "Execute exactly one plain SELECT (pg_query-checked) in a READ ONLY transaction with timeouts, always rolled back. Returns rows as a plain JSON array (not JSON:API).",
               "security" => [{ "bearerAuth" => [] }],
               "requestBody" => { "required" => true, "content" => { "application/json" => { "schema" => body_schema } } },
               "responses" => {
                 "200" => { "description" => "Rows", "content" => { "application/json" => { "schema" => response_schema } } },
-                "400" => { "description" => "Only SELECT statements are allowed" },
+                **error_responses,
               },
             },
           },
@@ -341,7 +350,7 @@ module Api
 
           ### Raw SQL escape hatch
 
-          `GET|POST /raw/sql` — SELECT-only; returns plain JSON array (not JSON:API).
+          `GET|POST /raw/sql` — one plain SELECT, READ ONLY with limits; returns plain JSON array (not JSON:API); 422/413 with `{error, reason}` on refusal.
         MD
       end
     end

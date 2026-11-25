@@ -15,7 +15,7 @@ A class-level hash on a Resource model (keys: `:only`, `:except`, `:methods`, `:
 _Avoid_: serialization config, field whitelist
 
 **SQL Escape Hatch**:
-A GET and POST endpoint (`/api/vN/raw/sql`) that executes a caller-supplied SELECT query directly against the database, bypassing the Resource abstraction. Used when ActiveRecord-generated queries are insufficient for performance-critical reads. Authentication required; write operations are rejected. Returns plain JSON in both API v2 and API v3 — a deliberate exception to JSON:API compliance in v3.
+A GET and POST endpoint (`/api/vN/raw/sql`) that executes a caller-supplied SELECT query directly against the database, bypassing the Resource abstraction. Used when ActiveRecord-generated queries are insufficient for performance-critical reads. Authentication required; exactly one plain SELECT, checked by PostgreSQL's parser and run in a read-only, always rolled-back transaction with limits. Returns plain JSON in both API v2 and API v3 — a deliberate exception to JSON:API compliance in v3.
 _Avoid_: raw endpoint, raw SQL endpoint, direct SQL
 
 **Custom Action**:
