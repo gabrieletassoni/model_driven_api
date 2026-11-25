@@ -1,5 +1,14 @@
 ## [Unreleased]
 
+## [3.16.0] - 2026-11-25
+
+### Security
+- **`raw/sql` runs as the database role `thecore_raw`, which cannot read secrets** (host ADR 0048, Odoo #6093). No access to `ldap_servers`, `thecore_settings`, `used_tokens`, `push_subscribers`, `action_mailbox_inbound_emails`, `integration_logs`, nor to any column named like a secret (`passw`, `secret`, `token`, `_key`, `crypt`, `salt`, `certificate`, `otp`, …), also through SQL hidden in a string (`query_to_xml`). `EXECUTE` on `set_config` and the other side-effect functions is revoked from `PUBLIC`. Such a query answers `not_permitted` (v2 400, v3 422). Views are readable only with `security_invoker` (others read as their superuser owner), materialized views not at all. A `SELECT` that lists non-secret columns of a table answers as before; `SELECT *` or `json_agg(u)` on `users` must now list the columns (with `RAW_SQL_ENFORCE=false` it is logged and run the old way).
+
+### Added
+- `rails thecore:db:raw_grants`: idempotent, rebuilds the role and its grants (new non-secret columns become readable, new tables are readable at once), runs by itself at the end of `rails thecore:db:seed` and, the first time, from the migration `ApplyThecoreRawGrants`. It needs a superuser database user; otherwise it warns and the deploy goes on.
+- `GET /api/v2|v3/info/raw_sql` (authenticated): `{ "protection": "full" | "reduced", "reasons": [...], "enforce": true | false }`. A reduced protection is also logged at every `rails server` boot.
+
 ## [3.15.0] - 2026-11-25
 
 ### Security
