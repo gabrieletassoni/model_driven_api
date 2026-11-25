@@ -2,7 +2,7 @@
 
 This is a Rails engine gem (`model_driven_api`) that auto-generates a versioned REST API at `/api/v2/` (plain JSON, Ransack-powered) and `/api/v3/` (JSON:API-compliant) by introspecting ActiveRecord models at runtime. It lives as a git submodule inside a parent Thecore application.
 
-Every request goes through `Api::V2::ApplicationController` (v3 inherits it): JWT auth, model resolution, CanCan authorization, CRUD. Public gem on GitHub; `.github/workflows/gempush.yml` runs the test suite (PostgreSQL 15, Ruby 3.3, JUnit report kept as the `junit` artifact) on every push and pull request on `release/3`; on a push its `publish` job runs only when the tests are green, and only for a version in `lib/*/version.rb` with no tag yet: it pushes the gem to RubyGems, then tags it and creates the GitHub release with the JUnit report attached. A red test never publishes.
+Every request goes through `Api::V2::ApplicationController` (v3 inherits it): JWT auth, model resolution, CanCan authorization, CRUD. Public gem on GitHub; `.github/workflows/gempush.yml` runs the test suite (PostgreSQL 15, Ruby 3.3, JUnit report kept as the `junit` artifact) on every push and pull request on `release/3`; on a push its `publish` job runs only when the tests are green, and only for a version in `lib/*/version.rb` with no tag yet: it pushes the gem to RubyGems, then tags it and creates the GitHub release with the JUnit report attached. If a rerun finds the version already on RubyGems (the tag push failed after the gem push), it skips the push and creates the tag and the release. A red test never publishes.
 
 ## Where things are
 

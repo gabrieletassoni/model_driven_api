@@ -102,9 +102,19 @@ jobs:
 
       # The gem goes first, the tag after: a failed push leaves no tag behind, so re-running
       # the workflow retries it (a tag pushed before a failed push would skip it for good).
+      # A push that worked before a failed tag push is not repeated on the rerun: RubyGems
+      # refuses the same version twice, so a version it already has is skipped and the tag and
+      # the release follow (host Odoo #6259).
       - name: Publish to RubyGems
         if: env.version_exists == 'false'
         run: |
+          gem_name=$(basename *.gemspec .gemspec)
+          published=$(curl -sS --retry 3 -o /dev/null -w '%{http_code}' \
+            "https://rubygems.org/api/v2/rubygems/$gem_name/versions/$version.json") || true
+          if [ "$published" = "200" ]; then
+            echo "$gem_name $version is already on RubyGems: not pushing it again"
+            exit 0
+          fi
           mkdir -p $HOME/.gem
           touch $HOME/.gem/credentials
           chmod 0600 $HOME/.gem/credentials
