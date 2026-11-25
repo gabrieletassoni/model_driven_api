@@ -49,6 +49,10 @@ Covered by `spec/lib/raw_sql_grants_spec.rb` (transactional: the role and grants
 
 Returns `{ version: ModelDrivenApi.app_version }` — the stripped contents of the host app's `version` file in `Rails.root` (the Thecore release convention: CI builds/deploys when it changes, and the production image is `ADD . /app`), or `null` when there is no such file. It used to return a hard-coded `"TODO: Find a Way to Dynamically Obtain It"`, so there was no way to tell which release a server runs. Covered by `spec/requests/api/v3/info_spec.rb`.
 
+## `GET /api/v2|v3/info/settings`
+
+Every `ThecoreSettings::Setting` as `{ ns => { key => raw } }`, authenticated. A Secret setting (`ThecoreSettings::Setting.secret_key?(key)`, thecore_settings >= 3.1.0) keeps its key with `null`: secrets are write-only (host ADR 0046 point 10, host Odoo #6084). Frontends read public values here (e.g. `vapid.public_key`), never a password. Covered by `spec/requests/api/info_settings_spec.rb`.
+
 ## OpenAPI / Swagger self-generation
 
 `GET /api/v2/info/openapi` (alias `/swagger`) and `GET /api/v3/info/openapi` (alias `/swagger`) each generate a full OpenAPI 3.0 spec. Neither endpoint requires authentication.

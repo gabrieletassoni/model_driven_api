@@ -130,7 +130,12 @@ class Api::V2::InfoController < Api::V2::ApplicationController
     render json: pivot.to_json, status: 200
   end
 
+  # GET '/api/v2|v3/info/settings': every setting by namespace; a Secret setting keeps its key
+  # with a null value, since it is write-only (host ADR 0046 point 10, host Odoo #6084).
   def settings
-    render json: ThecoreSettings::Setting.pluck(:ns, :key, :raw).inject({}) { |result, array| (result[array.first] ||= {})[array.second] = array.third; result }.to_json, status: 200
+    pivot = ThecoreSettings::Setting.pluck(:ns, :key, :raw).each_with_object({}) do |(ns, key, raw), result|
+      (result[ns] ||= {})[key] = ThecoreSettings::Setting.secret_key?(key) ? nil : raw
+    end
+    render json: pivot.to_json, status: 200
   end
 end

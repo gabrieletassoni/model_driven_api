@@ -28,7 +28,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "thecore_backend_commons", "~> 3.8" # ThecoreBackendCommons.smart_merge
   # User#active_for_authentication? refuses locked users (3.7.0): the API login, every JWT request
   # and the OAuth callback rely on it (Odoo #6051). Before it, Devise's default lets everyone in.
-  spec.add_dependency "thecore_auth_commons", ">= 3.7.0", "< 4"
+  spec.add_dependency "thecore_auth_commons", ">= 3.8.0", "< 4" # 3.8.0: write-only secrets, failed-login limit
   # https://github.com/jwt/ruby-jwt
   spec.add_dependency "jwt", "~> 3.0"
 

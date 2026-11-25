@@ -7,6 +7,9 @@ module Api
         except = Array(jattrs[:except]).map(&:to_sym)
         only = model_class.column_names.map(&:to_sym) - except
       end
+      # A model's write-only attributes (LdapServer#admin_password) are never serialized, whatever
+      # json_attrs asks (host Odoo #6084).
+      only -= Array(model_class.write_only_attributes).map(&:to_sym) if model_class.respond_to?(:write_only_attributes)
       new(only.reject { |a| a == :id }, Array(jattrs[:methods]).map(&:to_sym), jattrs[:include])
     end
 

@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+## [3.17.0] - 2026-11-25
+
+### Security
+- **`GET /api/v2|v3/info/settings` no longer returns secrets** (host Odoo #6084, host ADR 0046 point 10): a Secret setting (`ThecoreSettings::Setting.secret_key?`: `password`, `*_password`, `private_key`, `*_secret`, `*_token`, `api_key`, ...) keeps its key with a `null` value; every other setting is returned as before.
+- **A model's `write_only_attributes` are never serialized by v3**: `Api::ResourceAttributeSet` (the attribute list of the JSON:API serializers, which read columns directly) leaves out whatever `model.write_only_attributes` returns, whatever `json_attrs` says. `LdapServer` declares `admin_password` (`GET /api/v3/ldap_servers/:id` returned it).
+- Requires `thecore_auth_commons` >= 3.8.0: `LdapServer#admin_password` is never serialized nor ransackable (so `?a[only][]=admin_password` and `q[admin_password_start]` reveal nothing), and failed logins on `POST /api/vN/authenticate` count toward the per-IP limit (429 as JSON after 20 failures a minute, host Odoo #6052).
+
 ## [3.16.0] - 2026-11-25
 
 ### Security

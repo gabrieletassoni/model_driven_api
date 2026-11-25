@@ -165,7 +165,7 @@ module Api
             "get" => {
               "summary" => "Settings", "tags" => ["Info"],
               "security" => [{ "bearerAuth" => [] }],
-              "responses" => { "200" => { "description" => "All ThecoreSettings::Setting values" } },
+              "responses" => { "200" => { "description" => "Every ThecoreSettings::Setting by namespace; a Secret setting (password, private_key, ...) is null" } },
             },
           },
           "/info/swagger" => {

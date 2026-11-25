@@ -27,7 +27,7 @@ docs/adr/  docs/agents/  GLOSSARY.md  AGENTS.md (orientation map)
 | Entry point, v2/v3 controllers and request flow, Ransack search, routes | `docs/agents/request-pipeline.md` |
 | `json_attrs`, `SerializerFactory`, host-model concerns, default `json_attrs` | `docs/agents/serialization.md` |
 | Custom actions (`?do=`, `NonCrudEndpoints`, `public_action`), PushSubscriber endpoints | `docs/agents/custom-actions.md` |
-| JWT and key rotation, raw SQL, `info/version`, OpenAPI generation | `docs/agents/jwt-raw-sql-info-openapi.md` |
+| JWT and key rotation, raw SQL, `info/version`, `info/settings`, OpenAPI generation | `docs/agents/jwt-raw-sql-info-openapi.md` |
 | Key invariants and gotchas (full text of the rules below) | `docs/agents/invariants-and-gotchas.md` |
 | Dummy app, schema, spec helpers | `docs/agents/testing.md` |
 | CodeQL, secret scanning, Dependabot, `brakeman.ignore` | `docs/agents/security-scanning.md` |
@@ -57,6 +57,7 @@ Tests run on PostgreSQL only, never SQLite. First run: `RAILS_ENV=test bin/rails
 - `params` is `request.parameters`: never use `params.require(...).permit(...)`.
 - `update` and `patch` are the same method.
 - Every runtime dependency needed at class-body evaluation (`pagy`, `jsonapi/serializer`) is `require`d explicitly in `lib/model_driven_api.rb`; add any new runtime dependency's constant to `spec/lib/self_contained_require_spec.rb`.
+- A model's `write_only_attributes` (class method, e.g. `LdapServer` → `admin_password`) never reach a serializer: `ResourceAttributeSet` drops them for v3, the model's own `serializable_hash` for v2.
 - `Api::ResourceAttributeSet.for(model)` is the single source of truth for `json_attrs[:only/:except/:methods/:include]`: never inline it. Compose `json_attrs` with `ModelDrivenApi.smart_merge`, never plain `merge`.
 - `SerializerFactory` uses `send`, not `public_send`, for `methods:`, and caches serializers per class until restart.
 - OpenAPI paths live in `Api::OpenApi::V2/V3`, not in the info controllers.
@@ -64,6 +65,7 @@ Tests run on PostgreSQL only, never SQLite. First run: `RAILS_ENV=test bin/rails
 - Public custom actions (`public_action`) skip JWT and CanCan; `params[:current_user_id]` is nil there.
 - Custom-action and v3 raw SQL responses are plain JSON, never JSON:API envelopes.
 - User SQL (`raw/sql`) goes only through `SafeSqlExecutor`: never `connection.execute` it, never return PostgreSQL's message (host ADR 0048); it runs as the `thecore_raw` role, whose grants `rails thecore:db:raw_grants` rebuilds after every `thecore:db:seed`. Sole exception: the opt-in `RAW_SQL_ENFORCE=false` fallback, which reruns a rejected query the old way.
+- `info/settings` never returns a Secret setting's value (`null`, `ThecoreSettings::Setting.secret_key?`): never add an endpoint that returns `raw` of a secret.
 - v2 index on an empty collection answers 404 with `[]` (unless `always_ok=true`): a contract, don't change it.
 - `ApiExceptionManagement` handlers are production-only; the `StandardError` catch-all is declared **first**. Never map `NoMethodError`.
 - `append_migrations` compares roots with `==`, never `.match`.

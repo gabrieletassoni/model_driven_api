@@ -14,7 +14,7 @@
 # Sources: thecore_auth_commons, thecore_settings, model_driven_api (used_tokens),
 #          activestorage (required by rails/all in dummy app)
 
-ActiveRecord::Schema[7.2].define(version: 2026_11_25_120000) do
+ActiveRecord::Schema[7.2].define(version: 2026_11_25_150000) do
   enable_extension "plpgsql"
 
   create_table "actions", force: :cascade do |t|
@@ -68,7 +68,6 @@ ActiveRecord::Schema[7.2].define(version: 2026_11_25_120000) do
     t.string "surname"
     t.string "phone"
     t.string "code"
-    t.index ["admin_password"], name: "index_ldap_servers_on_admin_password"
     t.index ["admin_user"], name: "index_ldap_servers_on_admin_user"
     t.index ["auth_field"], name: "index_ldap_servers_on_auth_field"
     t.index ["base_dn"], name: "index_ldap_servers_on_base_dn"

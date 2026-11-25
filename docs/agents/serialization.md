@@ -6,7 +6,7 @@
 
 Lazily generates a named `JSONAPI::Serializer` subclass from each model's `json_attrs`. Classes are cached in the `Api::V3` namespace as `<ModelName>Serializer` after first generation.
 
-Attribute resolution is delegated to `Api::ResourceAttributeSet.for(model_class, jattrs:)` (see `docs/agents/invariants-and-gotchas.md`), which owns the `only:` / `except:` / `methods:` / `include:` logic in one place. The factory reads the resolved struct fields directly.
+Attribute resolution is delegated to `Api::ResourceAttributeSet.for(model_class, jattrs:)` (see `docs/agents/invariants-and-gotchas.md`), which owns the `only:` / `except:` / `methods:` / `include:` logic in one place. It also drops the model's `write_only_attributes` (a class method, e.g. `LdapServer` → `admin_password`, host Odoo #6084) whatever `json_attrs` says; v2 relies on the model's own `serializable_hash` for the same rule. Covered by `spec/lib/write_only_attributes_spec.rb`. The factory reads the resolved struct fields directly.
 
 `json_attrs[:methods]` — each symbol becomes a block-form `attribute` using `object.send(method_name)`. `send` (not `public_send`) is required — `thecore_backend_commons`'s `BaseApplicationRecordConcern` injects `methods: [:assets_paths, :rich_content_html]` into every model at `after_initialize` time, and both are declared `private`. Rails `as_json` uses `send` for the same reason.
 
