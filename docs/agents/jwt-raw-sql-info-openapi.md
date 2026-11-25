@@ -19,7 +19,28 @@
 3. **Errors**: `SafeSqlExecutor::Rejected` (`raw_sql_rejected`) or `Failed` (`raw_sql_failed`) with a `reason`; SQLSTATE 42501/25006 → `not_permitted`, 57014/55P03 → `timeout`, anything else → `query_error` with its `sqlstate`; a call inside an open transaction → `nested_transaction`. Every error is logged with the correlation id. PostgreSQL's message goes only to the Rails log, tagged with the request id. v2 answers 400 for everything (as always); v3 `Error#http_status`: 422, or 413 for `ResultTooLarge`. A `RAW_SQL_*` byte cap that isn't an integer falls back to its default with a warning.
 4. **`RAW_SQL_ENFORCE=false`** (per installation, rollout): a `Rejected` (never a `Failed`: a timeout must not run again without limits) writes an `IntegrationLog` warning (only if the host defines `::IntegrationLog`; the gem has no such table) and reruns the query the old way (regex + `connection.execute`), whose errors the controllers answer as before.
 
-The `thecore_raw` database role that hides secrets (Odoo #6093) is not here yet. Covered by `spec/requests/api/raw_sql_spec.rb` (non-transactional: the executor must own its transaction).
+5. **The `thecore_raw` role** (3.16.0, Odoo #6093, `lib/raw_sql_grants.rb`): when `RawSqlGrants.protected?`, the executor runs `SET LOCAL ROLE thecore_raw` after the limits (so `temp_file_limit` is still set as the app). It is the barrier the parser cannot be, since SQL hidden in a string (`query_to_xml`) escapes it: a denied table or column, or a revoked function reached that way, is SQLSTATE 42501 → `not_permitted`.
+
+Covered by `spec/requests/api/raw_sql_spec.rb` and `spec/requests/api/raw_sql_grants_spec.rb` (non-transactional: the executor must own its transaction; both apply the grants first, as a deploy does).
+
+## `thecore_raw` role and `rails thecore:db:raw_grants` (`lib/raw_sql_grants.rb`)
+
+`RawSqlGrants.apply!` rebuilds from scratch, in one transaction, everything the role may do (host ADR 0048 §2-3):
+
+- `thecore_raw` `NOLOGIN NOINHERIT` (and no superuser/createrole/bypassrls), created if missing;
+- `USAGE` on the current schema; `REVOKE ALL` on every table and sequence (which also drops stale column grants), then `SELECT` on every table, partitioned and foreign table, except `EXCLUDED_TABLES` (`ldap_servers`, `thecore_settings`, `used_tokens`, `push_subscribers`, `action_mailbox_inbound_emails`, `integration_logs`): no privilege at all;
+- on any relation with a column whose name matches `SECRET_COLUMN` (Rails' `filter_parameters` patterns without `email`: `passw secret token _key crypt salt certificate otp ssn cvv cvc`), a per-column `SELECT` that leaves those columns out. On `users` that means `SELECT *` and a whole-row `json_agg(u)` are refused. The ADR names `users`; applying it to every relation is what lets one test assert that no secret-named column anywhere is readable;
+- views: only those with `security_invoker` (PostgreSQL 15+) are granted, since they read as `thecore_raw`. Any other view, and every materialized view, reads with its owner's privileges (the superuser app), so an alias (`encrypted_password AS digest`) or a view over an excluded table would slip past the column-name check: they get nothing;
+- `ALTER DEFAULT PRIVILEGES … GRANT SELECT ON TABLES`, so a table created by a later migration is readable at once. Until the next run (the same deploy's `thecore:db:seed`) that grant is table-level: its secret-named columns, and a new owner-rights view, stay readable in between. Accepted, as the ADR rejected default-deny;
+- `REVOKE EXECUTE … FROM PUBLIC, thecore_raw` on every `pg_catalog` overload of `SafeSqlExecutor::DENIED_FUNCTIONS`. `set_config` matters most: from a superuser session it would undo `SET LOCAL ROLE`. The app, superuser, keeps using them.
+
+It needs a superuser connection. Without one it changes nothing, logs a warning and returns `:skipped`; the deploy goes on.
+
+When it runs: the migration `ApplyThecoreRawGrants` the first time, then `rails thecore:db:raw_grants`, appended to the end of `thecore:db:seed`. `thecore:db:seed` runs after the migrations both in `thecore:db:init/update` and in the thecore image entrypoint (`db:migrate` then `thecore:db:seed`), so every deploy re-applies the grants and a manual change to them does not survive. The hook is added from a prerequisite (`thecore:db:raw_grants_after_seed`), which runs when every engine's rake file is loaded, so it lands after `thecore_auth_commons`' seed actions whatever the load order.
+
+`RawSqlGrants.reasons` is `[]` when the protection is full, otherwise any of `role_missing`, `role_not_usable` (the connection cannot `SET ROLE` to it), `set_config_executable`. It is checked on every `raw/sql` call (two catalog lookups), at every `rails server` boot (`RawSqlGrants.report_at_boot` from the engine: a warning when reduced, never an exception), and by `GET /api/v2|v3/info/raw_sql`, authenticated: `{ "protection": "full" | "reduced", "reasons": [...], "enforce": true | false }`. Reduced protection still has the parser, `READ ONLY`, the limits and the rollback; only secrets stay readable.
+
+Covered by `spec/lib/raw_sql_grants_spec.rb` (transactional: the role and grants are rolled back) and `spec/requests/api/raw_sql_grants_spec.rb`.
 
 - **v2**: The query must return a `result` key (typically via `json_agg`). Response wrapped in `{ result: … }`.
 - **v3**: Returns raw rows as a plain JSON array — no `result` key required. A deliberate exception to JSON:API compliance (see ADR 0004).

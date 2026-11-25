@@ -20,6 +20,13 @@ module ModelDrivenApi
       ModelDrivenApi.enforce_utc!(app.config.time_zone, db_zone)
     end
 
+    # Says at every server boot when raw/sql runs without the thecore_raw role (host ADR 0048 §9,
+    # Odoo #6093). Only for `rails server`: rake tasks such as assets:precompile in an image build
+    # have no database to ask.
+    config.after_initialize do
+      RawSqlGrants.report_at_boot if defined?(::Rails::Server)
+    end
+
     initializer :append_migrations do |app|
       unless app.root.to_s == root.to_s
         config.paths["db/migrate"].expanded.each do |expanded_path|

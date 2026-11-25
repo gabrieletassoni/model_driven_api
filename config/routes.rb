@@ -23,6 +23,7 @@ Rails.application.routes.draw do
           get :settings
           get :swagger
           get :openapi
+          get :raw_sql
         end
 
         post "authenticate" => "authentication#authenticate"
@@ -71,6 +72,7 @@ Rails.application.routes.draw do
           get :settings
           get :swagger
           get :openapi
+          get :raw_sql
         end
 
         namespace :raw do

@@ -64,7 +64,7 @@ Field selection via `a` or `json_attrs` (mirrors Rails `as_json` DSL: `only`, `e
 ```
 # V2 (plain JSON, Ransack-powered)
 POST   /api/v2/authenticate
-GET    /api/v2/info/version|roles|heartbeat|ntp|translations|schema|dsl|settings|swagger|openapi
+GET    /api/v2/info/version|roles|heartbeat|ntp|translations|schema|dsl|settings|raw_sql|swagger|openapi
 GET    /api/v2/raw/sql
 POST   /api/v2/raw/sql
 GET    /api/v2/auth/:provider           → triggers OmniAuth
@@ -80,7 +80,7 @@ DELETE /api/v2/*path/:id(/multi)        → CRUD destroy / bulk destroy
 
 # V3 (JSON:API-compliant)
 POST   /api/v3/authenticate             → same plain JSON as v2 (Token header)
-GET    /api/v3/info/version|roles|heartbeat|ntp|translations|schema|dsl|settings|swagger|openapi
+GET    /api/v3/info/version|roles|heartbeat|ntp|translations|schema|dsl|settings|raw_sql|swagger|openapi
 GET    /api/v3/raw/sql                  → SQL escape hatch (plain JSON, not JSON:API)
 POST   /api/v3/raw/sql
 GET    /api/v3/:ctrl/custom_action/:action_name(/:id)

@@ -50,6 +50,7 @@ lib/
       serializer_factory.rb       # lazy JSONAPI::Serializer generation; delegates attrs to ResourceAttributeSet
   json_web_token.rb               # JWT encode/decode
   safe_sql_executor.rb            # raw/sql: pg_query check + READ ONLY run
+  raw_sql_grants.rb               # thecore_raw role and its grants (rake thecore:db:raw_grants)
   non_crud_endpoints.rb           # base class for Endpoints::* modules
   endpoint_validation_error.rb
   concerns/

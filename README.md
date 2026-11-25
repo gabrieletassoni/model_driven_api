@@ -468,6 +468,8 @@ Executes exactly one plain `SELECT` (CTEs included), sent by any authenticated u
 
 Error body: `{ "error": "raw_sql_rejected" | "raw_sql_failed", "reason": "…", "sqlstate": "…" }` (`sqlstate` only for `query_error`). Reasons: `only_single_select`, `data_modifying_statement`, `locking_clause`, `function_not_allowed`, `syntax_error`, `query_too_large`, `not_permitted`, `timeout`, `query_error`, `result_too_large`, `nested_transaction`. v2 answers every error with 400; v3 with 422, or 413 for `result_too_large`. A missing `query` is 400 `{ "error": "Query is required" }` in both.
 
+**What the query can read** is decided by the database role `thecore_raw`, under which it runs (3.16.0): no access to `ldap_servers`, `thecore_settings`, `used_tokens`, `push_subscribers`, `action_mailbox_inbound_emails`, `integration_logs`, nor to any column whose name looks like a secret (`passw`, `secret`, `token`, `_key`, `crypt`, `salt`, `certificate`, `otp`, …), so `SELECT *` or `json_agg(u)` on `users` is refused (`not_permitted`): list the columns. Every other table stays readable. Views are readable only when created `WITH (security_invoker = true)`; materialized views are not. `rails thecore:db:raw_grants` (idempotent) rebuilds the role and its grants; it runs by itself at the end of `rails thecore:db:seed`, so at every deploy, and needs the app's database user to be superuser. Otherwise it only warns, and `raw/sql` runs without the role: the log says so at every server boot, and `GET /api/v2|v3/info/raw_sql` (authenticated) answers `{ "protection": "reduced", "reasons": [...], "enforce": … }` instead of `"full"`.
+
 ### v2 — requires `result` key
 
 ```http
@@ -513,6 +515,7 @@ All info endpoints are available under both `/api/v2/info/` and `/api/v3/info/`.
 | `GET /info/dsl` | Yes | `json_attrs` DSL for each model |
 | `GET /info/translations` | Yes | Full i18n tree (`?locale=en`) |
 | `GET /info/settings` | Yes | All `ThecoreSettings::Setting` values |
+| `GET /info/raw_sql` | Yes | Whether `raw/sql` runs under the `thecore_raw` role: `{ protection: full\|reduced, reasons, enforce }` |
 | `GET /info/swagger` | No | OpenAPI 3.0 spec (alias: `/info/openapi`) |
 
 The v2 and v3 swagger specs are different — v2 documents plain JSON CRUD + Ransack + search + bulk ops; v3 documents JSON:API envelopes + filter/sort/page params + 204 on delete.

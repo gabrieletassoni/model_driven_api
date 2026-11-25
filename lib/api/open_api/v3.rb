@@ -118,6 +118,13 @@ module Api
               "responses" => { "200" => { "description" => "App version string" } },
             },
           },
+          "/info/raw_sql" => {
+            "get" => {
+              "summary" => "Raw SQL protection", "tags" => ["Info"],
+              "security" => [{ "bearerAuth" => [] }],
+              "responses" => { "200" => { "description" => "{ protection: full|reduced, reasons: [...], enforce: boolean }: whether raw/sql runs under the thecore_raw role" } },
+            },
+          },
           "/info/heartbeat" => {
             "get" => {
               "summary" => "Heartbeat", "tags" => ["Info"],
@@ -346,7 +353,7 @@ module Api
 
           ### Info & utility endpoints
 
-          `GET /info/version|heartbeat|roles|schema|dsl|translations|settings|swagger` — return plain JSON (not JSON:API).
+          `GET /info/version|heartbeat|roles|schema|dsl|translations|settings|raw_sql|swagger` — return plain JSON (not JSON:API).
 
           ### Raw SQL escape hatch
 

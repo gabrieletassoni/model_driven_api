@@ -63,7 +63,7 @@ Tests run on PostgreSQL only, never SQLite. First run: `RAILS_ENV=test bin/rails
 - `extract_model` never instantiates the class named by the request path.
 - Public custom actions (`public_action`) skip JWT and CanCan; `params[:current_user_id]` is nil there.
 - Custom-action and v3 raw SQL responses are plain JSON, never JSON:API envelopes.
-- User SQL (`raw/sql`) goes only through `SafeSqlExecutor`: never `connection.execute` it, never return PostgreSQL's message (host ADR 0048). Sole exception: the opt-in `RAW_SQL_ENFORCE=false` fallback, which reruns a rejected query the old way.
+- User SQL (`raw/sql`) goes only through `SafeSqlExecutor`: never `connection.execute` it, never return PostgreSQL's message (host ADR 0048); it runs as the `thecore_raw` role, whose grants `rails thecore:db:raw_grants` rebuilds after every `thecore:db:seed`. Sole exception: the opt-in `RAW_SQL_ENFORCE=false` fallback, which reruns a rejected query the old way.
 - v2 index on an empty collection answers 404 with `[]` (unless `always_ok=true`): a contract, don't change it.
 - `ApiExceptionManagement` handlers are production-only; the `StandardError` catch-all is declared **first**. Never map `NoMethodError`.
 - `append_migrations` compares roots with `==`, never `.match`.

@@ -11,7 +11,9 @@ require "securerandom"
 # 2. The query runs in a transaction of its own: READ ONLY, statement/lock timeouts, work_mem and
 #    temp_file_limit, through select_all (one statement over exec_params, never execute), and is
 #    always rolled back. Session advisory locks survive a rollback, so pg_advisory_unlock_all()
-#    runs afterwards. The database role that hides secrets comes with Odoo #6093.
+#    runs afterwards. When RawSqlGrants.protected?, the query runs as the thecore_raw role
+#    (Odoo #6093), which cannot read secret tables and columns nor call set_config: that, not the
+#    parser, is what keeps secrets out of reach.
 #
 # Errors never carry PostgreSQL's message: the caller gets Rejected/Failed with a reason, the
 # details go to the Rails log tagged with the correlation id (the request id).
@@ -168,9 +170,12 @@ module SafeSqlExecutor
         conn.execute("SET LOCAL lock_timeout = #{conn.quote(setting(:lock_timeout))}")
         conn.execute("SET LOCAL work_mem = #{conn.quote(setting(:work_mem))}")
         # Superuser-only (PGC_SUSET): on an installation where the app isn't superuser it is skipped.
-        if conn.select_value("SELECT current_setting('is_superuser')") == "on"
+        if RawSqlGrants.superuser?(conn)
           conn.execute("SET LOCAL temp_file_limit = #{conn.quote(setting(:temp_file_limit))}")
         end
+        # The barrier that hides secrets (Odoo #6093). Without it (grants never applied, app not
+        # superuser) the query still runs READ ONLY with the parser in front, as RawSqlGrants reports.
+        conn.execute("SET LOCAL ROLE #{RawSqlGrants::ROLE}") if RawSqlGrants.protected?(conn)
         rows = conn.select_all(query, "RawSql").to_a
         raise ActiveRecord::Rollback
       end

@@ -27,6 +27,13 @@ class Api::V2::InfoController < Api::V2::ApplicationController
     render json: { server_time_utc: Time.current.utc }.to_json, status: 200
   end
 
+  # GET '/api/v2|v3/info/raw_sql' (host ADR 0048 §9, Odoo #6093): whether raw/sql runs under the
+  # thecore_raw role ("full") or without it, so secrets stay readable ("reduced", with the reasons),
+  # and whether RAW_SQL_ENFORCE is on. Authenticated: it tells how exposed the installation is.
+  def raw_sql
+    render json: RawSqlGrants.status, status: 200
+  end
+
   # GET '/api/v2/info/translations'
   def translations
     render json: I18n.t(".", locale: (params[:locale].presence || :it)).to_json, status: 200

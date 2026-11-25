@@ -14,7 +14,7 @@
 # Sources: thecore_auth_commons, thecore_settings, model_driven_api (used_tokens),
 #          activestorage (required by rails/all in dummy app)
 
-ActiveRecord::Schema[7.2].define(version: 2025_12_16_111217) do
+ActiveRecord::Schema[7.2].define(version: 2026_11_25_120000) do
   enable_extension "plpgsql"
 
   create_table "actions", force: :cascade do |t|

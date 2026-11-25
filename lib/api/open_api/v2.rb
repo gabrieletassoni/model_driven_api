@@ -149,6 +149,21 @@ module Api
               },
             },
           },
+          "/info/raw_sql": {
+            "get": {
+              "summary": "Raw SQL protection",
+              "description": "Whether raw/sql runs under the thecore_raw role (protection full) or without it, so secrets stay readable (reduced, with the reasons), and whether RAW_SQL_ENFORCE is on",
+              "tags": ["Info"],
+              "security": [
+                "bearerAuth": [],
+              ],
+              "responses": {
+                "200": {
+                  "description": "{ protection: full|reduced, reasons: [role_missing|role_not_usable|set_config_executable], enforce: boolean }",
+                },
+              },
+            },
+          },
           "/info/heartbeat": {
             "get": {
               "summary": "Heartbeat",

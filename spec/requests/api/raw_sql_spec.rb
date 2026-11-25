@@ -10,6 +10,9 @@ RSpec.describe "API raw SQL", type: :request do
   let!(:user) { create(:user) }
   let(:conn) { ActiveRecord::Base.connection }
 
+  # As every deploy leaves it (thecore:db:raw_grants, Odoo #6093).
+  before { RawSqlGrants.apply! }
+
   after do
     conn.execute("SELECT pg_advisory_unlock_all()")
     conn.execute("DELETE FROM roles WHERE name LIKE 'raw-sql-%'")
@@ -88,13 +91,30 @@ RSpec.describe "API raw SQL", type: :request do
     end
   end
 
-  # query_to_xml runs SQL hidden in a string, out of the parser's sight (ADR 0048): the session
-  # lock it takes must not outlive the request on the pooled connection.
-  it "leaves no session advisory lock behind, even one taken out of the parser's sight" do
-    raw_sql("v3", "SELECT query_to_xml('SELECT pg_advisory_lock(4242)', true, false, '') AS result")
+  # query_to_xml runs SQL hidden in a string, out of the parser's sight (ADR 0048).
+  describe "a session advisory lock taken out of the parser's sight" do
+    let(:query) { "SELECT query_to_xml('SELECT pg_advisory_lock(4242)', true, false, '') AS result" }
 
-    expect(response).to have_http_status(200)
-    expect(conn.select_value("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND objid = 4242")).to eq(0)
+    def advisory_locks = conn.select_value("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND objid = 4242")
+
+    it "is not permitted to the thecore_raw role" do
+      raw_sql("v3", query)
+
+      expect(response).to have_http_status(422)
+      expect(body).to eq("error" => "raw_sql_rejected", "reason" => "not_permitted")
+      expect(advisory_locks).to eq(0)
+    end
+
+    # Where the app is not superuser the grants are skipped: the lock must still not outlive the
+    # request on the pooled connection.
+    it "does not outlive the request on an installation without the role" do
+      allow(RawSqlGrants).to receive(:protected?).and_return(false)
+
+      raw_sql("v3", query)
+
+      expect(response).to have_http_status(200)
+      expect(advisory_locks).to eq(0)
+    end
   end
 
   it "runs the query READ ONLY, so a write the parser cannot see is not permitted" do
