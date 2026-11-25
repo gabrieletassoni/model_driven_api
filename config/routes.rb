@@ -10,12 +10,6 @@ Rails.application.routes.draw do
     end
     namespace :api, constraints: { format: :json } do
       namespace :v3 do
-        if ThecoreAuthCommons.oauth_vars?
-          namespace :auth do
-            post :jwt, to: "oauth#exchange_token"
-          end
-        end
-
         resources :users
 
         namespace :info do
@@ -61,7 +55,6 @@ Rails.application.routes.draw do
             match ":provider/callback", to: "oauth#callback", via: [:get, :post]
             get :failure, to: "oauth#failure"
             get ":provider", to: redirect("/auth/%{provider}") # triggers OmniAuth middleware
-            post :jwt, to: "oauth#exchange_token" # Optional endpoint to allow frontends to send the OAuth token
           end
         end
 

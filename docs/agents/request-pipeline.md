@@ -16,7 +16,7 @@
 |---|---|
 | `application_controller.rb` | Base controller — auth, model extraction, all CRUD actions |
 | `authentication_controller.rb` | `POST /api/v2/authenticate` — email/password → JWT |
-| `auth/oauth_controller.rb` | OAuth2 callback + token exchange for Google/Microsoft. `callback` takes the identity only from `request.env['omniauth.auth']` (set by the OmniAuth middleware on `/auth/:provider/callback`, which routes here directly, not via redirect), never from params (Odoo #5837); `exchange_token` asks the provider's userinfo endpoint and only logs in existing users |
+| `auth/oauth_controller.rb` | OAuth2 callback for Google/Microsoft. `callback` takes the identity only from `request.env['omniauth.auth']` (set by the OmniAuth middleware on `/auth/:provider/callback`, which routes here directly, not via redirect), never from params (Odoo #5837); the token exchange `exchange_token` was removed in 3.15.0 (host Odoo #5860) |
 | `info_controller.rb` | `/api/v2/info/*` — version, roles, schema, dsl, swagger, openapi, ntp, heartbeat, translations, settings |
 | `raw_controller.rb` | `POST /api/v2/raw/sql` — one plain SELECT through `SafeSqlExecutor` (READ ONLY, limits, errors 400 `{error, reason}`) |
 
@@ -26,7 +26,6 @@
 |---|---|
 | `application_controller.rb` | Inherits v2 base — overrides CRUD with JSON:API envelopes, Pagy pagination, `filter[field]` filtering, `sort` ordering |
 | `authentication_controller.rb` | Thin subclass of v2 auth controller — provides `POST /api/v3/authenticate` |
-| `auth/oauth_controller.rb` | Thin subclass of v2 OAuth controller — exposes only `exchange_token` via `POST /api/v3/auth/jwt` (registered only when `oauth_vars?`); `callback`/`failure` stay v2-only (OmniAuth middleware is hardcoded to v2 path) |
 | `info_controller.rb` | Inherits v2 info — overrides only `openapi`/`swagger` to call `Api::OpenApi::V3`; all other info actions inherited unchanged |
 | `raw_controller.rb` | `GET/POST /api/v3/raw/sql` — same `SafeSqlExecutor`, errors 422/413; returns **plain JSON array** (deliberate JSON:API exception) |
 | `users_controller.rb` | Thin subclass of v3 application controller — adds `check_demoting` guard on `update`/`patch`/`destroy`; prevents a user from modifying their own `admin` or `locked` flags (same constraint as v2) |
@@ -70,7 +69,6 @@ GET    /api/v2/raw/sql
 POST   /api/v2/raw/sql
 GET    /api/v2/auth/:provider           → triggers OmniAuth
 POST   /api/v2/auth/:provider/callback
-POST   /api/v2/auth/jwt                 → token exchange from frontend OAuth token
 GET    /api/v2/:ctrl/custom_action/:action_name(/:id)
 POST   /api/v2/:ctrl/custom_action/:action_name
 ...    (PUT/PATCH/DELETE custom actions)
@@ -82,7 +80,6 @@ DELETE /api/v2/*path/:id(/multi)        → CRUD destroy / bulk destroy
 
 # V3 (JSON:API-compliant)
 POST   /api/v3/authenticate             → same plain JSON as v2 (Token header)
-POST   /api/v3/auth/jwt                 → token exchange from frontend OAuth token (registered only when oauth_vars?)
 GET    /api/v3/info/version|roles|heartbeat|ntp|translations|schema|dsl|settings|swagger|openapi
 GET    /api/v3/raw/sql                  → SQL escape hatch (plain JSON, not JSON:API)
 POST   /api/v3/raw/sql

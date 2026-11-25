@@ -33,41 +33,5 @@ module Api::V2::Auth
     def failure
       render json: { error: "OAuth authentication failed" }, status: :unauthorized
     end
-
-    def exchange_token
-      provider_token = params[:provider_token]
-      provider = params[:provider] # 'google' or 'microsoft'
-
-      user_info = case provider
-      when 'google'
-        uri = URI("https://www.googleapis.com/oauth2/v3/userinfo")
-        res = Net::HTTP.start(uri.host, uri.port, use_ssl: true) do |http|
-          req = Net::HTTP::Get.new(uri)
-          req["Authorization"] = "Bearer #{provider_token}"
-          http.request(req)
-        end
-        JSON.parse(res.body)
-      when 'microsoft'
-        uri = URI("https://graph.microsoft.com/v1.0/me")
-        res = Net::HTTP.start(uri.host, uri.port, use_ssl: true) do |http|
-          req = Net::HTTP::Get.new(uri)
-          req["Authorization"] = "Bearer #{provider_token}"
-          http.request(req)
-        end
-        JSON.parse(res.body)
-      else
-        return render json: { error: "Unknown provider" }, status: :unprocessable_entity
-      end
-
-      email = user_info["mail"] || user_info["email"] || user_info["userPrincipalName"]
-      user = User.find_by(email: email)
-
-      unless user&.active_for_authentication?
-        return render json: { error: "User not registered" }, status: :unauthorized
-      end
-
-      response.set_header("Token", JsonWebToken.encode(user_id: user.id))
-      render json: user, status: :ok
-    end
   end
 end

@@ -18,12 +18,12 @@ app/
     authentication_controller.rb
     auth/oauth_controller.rb      # Google/Microsoft OAuth2
     info_controller.rb            # meta endpoints (schema, openapi, heartbeat …)
-    raw_controller.rb             # SELECT-only SQL; returns { result: … }
+    raw_controller.rb             # one SELECT via SafeSqlExecutor; returns { result: … }
   controllers/api/v3/
     application_controller.rb     # JSON:API CRUD; inherits v2 auth + model extraction
     authentication_controller.rb  # thin subclass — POST /api/v3/authenticate
     info_controller.rb            # inherits v2 info; overrides openapi/swagger for v3 spec
-    raw_controller.rb             # SELECT-only SQL; returns plain JSON array
+    raw_controller.rb             # one SELECT via SafeSqlExecutor; returns plain JSON array
 config/
   routes.rb                       # /api/v2/* and /api/v3/* routes
   initializers/

@@ -101,24 +101,11 @@ Accept: application/vnd.api+json
 
 ## OAuth2 Authorization
 
-OAuth2 is enabled when the relevant environment variables are set (see below). Two flows are supported:
+OAuth2 is enabled when the relevant environment variables are set (see below). The only flow is the server-side OmniAuth callback (the frontend token exchange `POST /api/v2|v3/auth/jwt` was removed in 3.15.0).
 
 ### Server-side OmniAuth callback (traditional)
 
 Set redirect URI to `http://yourdomain/auth/:provider/callback`. The OmniAuth middleware redirects to `/api/v2/auth/:provider/callback`, which returns the user JSON and a `Token` header.
-
-### Frontend token exchange (`POST /api/v2/auth/jwt`)
-
-For SPA frontends that obtain the OAuth token themselves:
-
-```http
-POST /api/v2/auth/jwt
-Content-Type: application/json
-
-{ "provider": "google", "provider_token": "<google-access-token>" }
-```
-
-The backend verifies the token against the provider's userinfo endpoint and returns a JWT.
 
 ### Register OAuth apps
 

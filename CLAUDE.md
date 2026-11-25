@@ -8,7 +8,7 @@ Every request goes through `Api::V2::ApplicationController` (v3 inherits it): JW
 
 ```
 app/controllers/api/v2/  application (core CRUD + auth), authentication, auth/oauth, info, raw (SQL)
-app/controllers/api/v3/  JSON:API layer on v2: application, authentication, auth/oauth, info, raw, users
+app/controllers/api/v3/  JSON:API layer on v2: application, authentication, info, raw, users
 app/models/endpoints/    push_subscriber.rb (custom endpoints)
 lib/model_driven_api.rb  gem entrypoint (explicit requires: pagy, jsonapi/serializer)
 lib/model_driven_api/    engine.rb, version.rb
