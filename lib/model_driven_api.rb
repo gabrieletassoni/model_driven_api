@@ -1,5 +1,8 @@
 require 'endpoint_validation_error'
 require 'non_crud_endpoints'
+# Its own runtime dependency (User#active_for_authentication?, check_user, Ldap::Authenticator):
+# required here rather than trusted to come through thecore_backend_commons.
+require 'thecore_auth_commons'
 require 'thecore_backend_commons'
 require 'rack/cors'
 require 'ransack'
