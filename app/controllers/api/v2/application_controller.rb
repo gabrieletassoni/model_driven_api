@@ -280,6 +280,9 @@ class Api::V2::ApplicationController < ActionController::API
 
   def extract_model
     @model = Api::ModelResolver.resolve(params, controller_path, controller_name)
+    # A catchall or custom-action path that names no class: nothing can serve it (the CRUD and
+    # the dispatcher need a class). Info endpoints resolve no model on purpose and carry neither param.
+    return not_found! if @model.nil? && (params[:path].present? || params[:ctrl].present?)
     @body = (params[@model.model_name.singular].presence || params[@model.model_name.route_key]) rescue params
   rescue Api::ModelResolver::NotFound
     not_found!
