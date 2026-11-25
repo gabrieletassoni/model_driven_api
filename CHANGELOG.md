@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [3.14.1] - 2026-11-25
+
+### Removed
+- The example `.gitlab-ci.yml` (Ruby 3.1.2), never run since the repository lives on GitHub; CI is `.github/workflows/gempush.yml` (host Odoo #6261).
+
 ## [3.13.3] - 2026-11-24
 
 ### Fixed
