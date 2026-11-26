@@ -54,7 +54,7 @@ Tests run on PostgreSQL only, never SQLite. First run: `RAILS_ENV=test bin/rails
 ## Rules most tasks need
 
 - **UTC-only backend, enforced at boot** (`ModelDrivenApi.enforce_utc!`). Never reintroduce a global `as_json` override on time classes.
-- Serialization options from the request (`a` / `json_attrs`) go through `Api::V2::RequestJsonAttrs.from_params`, and every record applies its own class's rules (ADR 0006): associations only, hidden secrets never, undeclared `methods` only if public, ours (host or thecore gem), no `!`/`=`, no required args, run under `while_preventing_writes`. Never pass request options to `as_json` unmarked.
+- Serialization options from the request (`a` / `json_attrs`) go through `Api::V2::RequestJsonAttrs.from_params`, and every record applies its own class's rules (ADR 0006): associations only, hidden secrets never, undeclared `methods` only if public, not a callback, ours (host or thecore gem), no `!`/`=`, no required args, run under `while_preventing_writes`. Never pass request options to `as_json` unmarked.
 - `params` is `request.parameters`: never use `params.require(...).permit(...)`.
 - `update` and `patch` are the same method.
 - Every runtime dependency needed at class-body evaluation (`pagy`, `jsonapi/serializer`) is `require`d explicitly in `lib/model_driven_api.rb`; add any new runtime dependency's constant to `spec/lib/self_contained_require_spec.rb`.

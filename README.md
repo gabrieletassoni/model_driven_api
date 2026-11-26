@@ -195,7 +195,7 @@ Parameters work identically in query string (GET) and JSON body (POST search).
 }
 ```
 
-The client's options follow conventions (ADR 0006): `include` takes real associations only; secrets the model hides (a secret-named column left out of its default JSON, its `json_attrs[:except]` or `write_only_attributes`, e.g. Devise's `encrypted_password`) never come back, in v2, v3 or Ransack filters and sorts; `methods` serves what the model declares in `json_attrs[:methods]`, columns, associations, `<association>_ids`, and public methods written in the app or a thecore gem (not ending in `!`/`=`, no required arguments), which run read-only. Anything else is dropped from the response and logged; the response stays 200.
+The client's options follow conventions (ADR 0006): `include` takes real associations only; secrets the model hides (a secret-named column left out of its default JSON, its `json_attrs[:except]` or `write_only_attributes`, e.g. Devise's `encrypted_password`) never come back, in v2, v3 or Ransack filters and sorts; `methods` serves what the model declares in `json_attrs[:methods]`, columns, associations, `<association>_ids`, and public methods written in the app or a thecore gem (not a model callback, not ending in `!`/`=`, no required arguments), which run read-only. Anything else is dropped from the response and logged; the response stays 200.
 
 #### Ransack filtering (`q`)
 

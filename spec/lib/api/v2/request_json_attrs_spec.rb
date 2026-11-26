@@ -139,6 +139,72 @@ RSpec.describe Api::V2::RequestJsonAttrs do
         .to eq("id" => user.id, "email" => user.email, "role_ids" => [role.id])
     end
 
+    describe "callbacks" do
+      # Callbacks written by us and left public (host Odoo #6314). Their side effects may live
+      # outside the database (Redis, mail, HTTP), where the read-only guard can't see them.
+      let(:calls) { [] }
+      let(:callback_klass) do
+        log = calls
+        Class.new(Role) do
+          def self.name = "Role"
+          def self.json_attrs = {methods: %i[declared_callback]}
+
+          before_validation :our_validation_callback
+          after_save :our_external_callback
+          after_commit :declared_callback
+
+          define_method(:our_validation_callback) { log << :validation; "validation" }
+          define_method(:our_external_callback) { log << :external; "external" }
+          define_method(:declared_callback) { "declared" }
+
+          def our_reader = "read #{name}"
+        end
+      end
+      let(:record) { callback_klass.find(role.id) }
+
+      it "never call an undeclared callback, whichever chain registers it" do
+        expect(serialize(record, only: %w[id], methods: %w[our_validation_callback our_external_callback]))
+          .to eq("id" => role.id)
+        expect(calls).to be_empty
+      end
+
+      it "still run a callback the model declares in json_attrs[:methods]" do
+        expect(serialize(record, only: %w[id], methods: %w[declared_callback]))
+          .to eq("id" => role.id, "declared_callback" => "declared")
+      end
+
+      it "still serve a public method of ours that is not a callback" do
+        expect(serialize(record, only: %w[id], methods: %w[our_reader])).to eq("id" => role.id, "our_reader" => "read Reader")
+      end
+
+      it "log the refusal as a callback" do
+        allow(Rails.logger).to receive(:warn)
+
+        serialize(record, only: %w[id], methods: %w[our_external_callback])
+
+        expect(Rails.logger).to have_received(:warn).with(/Role#our_external_callback dropped \(a callback\)/).once
+      end
+
+      it "apply to included records too" do
+        log = calls
+        stub_const("CallbackUser", Class.new(User) do
+          after_save :our_external_callback
+          define_method(:our_external_callback) { log << :external }
+        end)
+        message_class = Class.new(PushMessage) do
+          def self.name = "PushMessage"
+          belongs_to :callback_sender, class_name: "CallbackUser", foreign_key: :sender_user_id, optional: true
+        end
+        user = create(:user)
+        message = create(:push_message, sender: user)
+
+        expect(serialize(message_class.find(message.id), only: %w[id],
+          include: {callback_sender: {only: %w[id], methods: %w[our_external_callback]}}))
+          .to eq("id" => message.id, "callback_sender" => {"id" => user.id})
+        expect(calls).to be_empty
+      end
+    end
+
     it "log each dropped name once per request" do
       allow(Rails.logger).to receive(:warn)
 

@@ -9,7 +9,8 @@ module Api
     #   serializable_hash, e.g. Devise's encrypted_password, LdapServer#admin_password) never come back;
     # - a `methods` name declared in the class's json_attrs[:methods] runs as before (a developer
     #   exposed it); a column or association reader (or `<assoc>_ids`) is a plain read; any other
-    #   name must be public, end in neither `!` nor `=`, take no required argument and be written in
+    #   name must be public, not a callback of the class (host Odoo #6314), end in neither `!` nor
+    #   `=`, take no required argument and be written in
     #   the host or in a thecore gem (a gem named thecore* or depending on one), and it runs under
     #   the read-only guard: if it writes, or raises, only that field is dropped.
     #
@@ -90,6 +91,7 @@ module Api
         return :reader if reader?(klass, name)
         return "ends in ! or =" if name.end_with?("!", "=")
         return "not a public method" unless klass.public_method_defined?(name)
+        return "a callback" if callback?(klass, name)
 
         method = klass.instance_method(name)
         return "takes required arguments" if method.parameters.any? { |type, _| %i[req keyreq].include?(type) }
@@ -105,6 +107,16 @@ module Api
       end
 
       def active_record?(klass) = klass < ActiveRecord::Base
+
+      # Registered as a Symbol filter in any of the class's callback chains (validation, validate,
+      # save, create, update, destroy, commit, rollback, initialize, find, touch, and any custom
+      # chain). A callback belongs to the record's lifecycle, never to its API, and its side
+      # effects may live outside the database, where the read-only guard can't see them.
+      def callback?(klass, name)
+        return false unless klass.respond_to?(:__callbacks)
+
+        klass.__callbacks.each_value.any? { |chain| chain.any? { |cb| cb.filter.is_a?(Symbol) && cb.filter.to_s == name } }
+      end
 
       def reader?(klass, name)
         return false unless active_record?(klass)
