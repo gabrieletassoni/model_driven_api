@@ -12,7 +12,7 @@ RSpec.describe "API v2 serialization options from the request", type: :request d
   def body = JSON.parse(response.body)
 
   it "never runs destroy named in a[methods]" do
-    get "/api/v2/roles/#{role.id}", params: { a: { only: %w[id], methods: %w[destroy] } }, headers: headers
+    get "/api/v2/roles/#{role.id}", params: {a: {only: %w[id], methods: %w[destroy]}}, headers: headers
 
     expect(response).to have_http_status(:ok)
     expect(body).to eq("id" => role.id)
@@ -20,7 +20,7 @@ RSpec.describe "API v2 serialization options from the request", type: :request d
   end
 
   it "never runs destroy named as an include" do
-    get "/api/v2/roles/#{role.id}", params: { a: { only: %w[id], include: { destroy: { only: %w[id] } } } }, headers: headers
+    get "/api/v2/roles/#{role.id}", params: {a: {only: %w[id], include: {destroy: {only: %w[id]}}}}, headers: headers
 
     expect(response).to have_http_status(:ok)
     expect(body).to eq("id" => role.id)
@@ -28,15 +28,15 @@ RSpec.describe "API v2 serialization options from the request", type: :request d
   end
 
   it "never runs destroy from the index either" do
-    get "/api/v2/roles", params: { a: { only: %w[id], methods: %w[destroy] } }, headers: headers
+    get "/api/v2/roles", params: {a: {only: %w[id], methods: %w[destroy]}}, headers: headers
 
     expect(response).to have_http_status(:ok)
-    expect(body).to eq([{ "id" => role.id }])
+    expect(body).to eq([{"id" => role.id}])
     expect(Role.count).to eq(1)
   end
 
   it "does not serve framework methods such as attributes" do
-    get "/api/v2/users/#{user.id}", params: { a: { only: %w[id], methods: %w[attributes] } }, headers: headers
+    get "/api/v2/users/#{user.id}", params: {a: {only: %w[id], methods: %w[attributes]}}, headers: headers
 
     expect(response).to have_http_status(:ok)
     expect(body).to eq("id" => user.id)
@@ -44,15 +44,15 @@ RSpec.describe "API v2 serialization options from the request", type: :request d
 
   it "still serves columns and real associations the client asks for" do
     user.roles << role
-    get "/api/v2/users/#{user.id}", params: { a: { only: %w[id email], include: { roles: { only: %w[name] } } } },
-                                    headers: headers
+    get "/api/v2/users/#{user.id}", params: {a: {only: %w[id email], include: {roles: {only: %w[name]}}}},
+      headers: headers
 
-    expect(body).to eq("id" => user.id, "email" => user.email, "roles" => [{ "name" => "Reader" }])
+    expect(body).to eq("id" => user.id, "email" => user.email, "roles" => [{"name" => "Reader"}])
   end
 
   it "applies the same rules to the record an update renders" do
-    put "/api/v2/roles/#{role.id}", params: { role: { name: "Editor" }, a: { only: %w[id name], methods: %w[destroy] } },
-                                    headers: headers, as: :json
+    put "/api/v2/roles/#{role.id}", params: {role: {name: "Editor"}, a: {only: %w[id name], methods: %w[destroy]}},
+      headers: headers, as: :json
 
     expect(response).to have_http_status(:ok)
     expect(body).to eq("id" => role.id, "name" => "Editor")

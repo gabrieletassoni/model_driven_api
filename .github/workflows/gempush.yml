@@ -48,6 +48,9 @@ jobs:
           ruby-version: '3.3'
           bundler-cache: true # runs 'bundle install' and caches installed gems automatically
 
+      - name: Lint (standard; old offenses frozen in .standard_todo.yml)
+        run: bundle exec standardrb
+
       - name: Create the test database
         run: bin/rails db:create
 

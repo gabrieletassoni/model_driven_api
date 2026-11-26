@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Development
+- Lint with `standard` (`bundle exec standardrb`), run by CI before the specs. Older offenses are frozen per file in `.standard_todo.yml`; the request-options and hidden-secrets files and specs are clean.
+
 ## [3.20.0] - 2026-11-26
 
 ### Security

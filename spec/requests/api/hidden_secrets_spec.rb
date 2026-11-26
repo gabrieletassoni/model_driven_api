@@ -21,8 +21,8 @@ RSpec.describe "API-hidden secrets", type: :request do
     let!(:other) { create(:user) }
 
     it "v2 q[] cannot filter by encrypted_password" do
-      get "/api/v2/users", params: { a: { only: %w[id] }, q: { encrypted_password_start: other.encrypted_password } },
-                           headers: headers
+      get "/api/v2/users", params: {a: {only: %w[id]}, q: {encrypted_password_start: other.encrypted_password}},
+        headers: headers
 
       expect(body.map { |u| u["id"] }).to contain_exactly(user.id, other.id)
     end
@@ -36,7 +36,7 @@ RSpec.describe "API-hidden secrets", type: :request do
     end
 
     it "v3 filter cannot match encrypted_password" do
-      get "/api/v3/users", params: { filter: { encrypted_password: other.encrypted_password } }, headers: headers
+      get "/api/v3/users", params: {filter: {encrypted_password: other.encrypted_password}}, headers: headers
 
       expect(body["data"].map { |u| u["id"].to_i }).to contain_exactly(user.id, other.id)
     end
@@ -47,15 +47,15 @@ RSpec.describe "API-hidden secrets", type: :request do
 
       get "/api/v3/users", headers: headers
       unsorted = body["data"].map { |u| u["id"] }
-      get "/api/v3/users", params: { sort: "-encrypted_password" }, headers: headers
+      get "/api/v3/users", params: {sort: "-encrypted_password"}, headers: headers
       descending = body["data"].map { |u| u["id"] }
-      get "/api/v3/users", params: { sort: "encrypted_password" }, headers: headers
+      get "/api/v3/users", params: {sort: "encrypted_password"}, headers: headers
 
       expect([descending, body["data"].map { |u| u["id"] }]).to eq([unsorted, unsorted])
     end
 
     it "keeps every other column filterable" do
-      get "/api/v2/users", params: { a: { only: %w[id] }, q: { email_eq: other.email } }, headers: headers
+      get "/api/v2/users", params: {a: {only: %w[id]}, q: {email_eq: other.email}}, headers: headers
 
       expect(body.map { |u| u["id"] }).to eq([other.id])
     end

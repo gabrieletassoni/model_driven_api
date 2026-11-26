@@ -30,7 +30,7 @@ module Api
 
     def left_out_by_default(klass)
       klass.column_names - klass.new.serializable_hash.keys
-    rescue StandardError => e
+    rescue => e
       Rails.logger.warn("[model_driven_api] HiddenSecrets: #{klass.name}.new failed (#{e.class}), " \
                         "secrets hidden by its serializable_hash are not detected")
       []

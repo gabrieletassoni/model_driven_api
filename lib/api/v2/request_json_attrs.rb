@@ -180,7 +180,7 @@ module Api
             # restore it so neither the next field nor the caller sees a value that was never saved.
             snapshot = @attributes.deep_dup if is_a?(ActiveRecord::Base)
             hash[name] = ActiveRecord::Base.while_preventing_writes { send(name) }
-          rescue StandardError => e
+          rescue => e
             @attributes = snapshot if is_a?(ActiveRecord::Base)
             RequestJsonAttrs.drop(self.class, name, "raised #{e.class}")
           end

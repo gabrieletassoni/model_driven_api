@@ -1,0 +1,258 @@
+# Auto generated files with errors to ignore.
+# Remove from this list as you refactor files.
+---
+ignore:
+- Gemfile:
+  - Style/StringLiterals
+  - Style/TernaryParentheses
+  - Layout/TrailingWhitespace
+- Rakefile:
+  - Layout/TrailingEmptyLines
+- app/commands/authenticate_user.rb:
+  - Layout/IndentationWidth
+  - Layout/TrailingWhitespace
+  - Lint/AssignmentInCondition
+  - Layout/AccessModifierIndentation
+  - Layout/LeadingCommentSpace
+  - Style/RedundantReturn
+  - Layout/TrailingEmptyLines
+- app/commands/authorize_api_request.rb:
+  - Layout/IndentationWidth
+  - Layout/TrailingWhitespace
+  - Style/RescueModifier
+  - Layout/AccessModifierIndentation
+  - Style/RedundantReturn
+  - Style/RedundantParentheses
+  - Style/StringLiteralsInInterpolation
+  - Style/StringLiterals
+  - Layout/TrailingEmptyLines
+- app/controllers/api/v2/application_controller.rb:
+  - Style/RedundantParentheses
+  - Style/TernaryParentheses
+  - Layout/LeadingCommentSpace
+  - Layout/SpaceInsideHashLiteralBraces
+  - Style/RescueModifier
+  - Style/SafeNavigation
+  - Style/RedundantReturn
+  - Lint/UselessAssignment
+- app/controllers/api/v2/auth/oauth_controller.rb:
+  - Style/StringLiterals
+  - Layout/ArgumentAlignment
+  - Layout/SpaceInsideHashLiteralBraces
+  - Layout/TrailingEmptyLines
+- app/controllers/api/v2/authentication_controller.rb:
+  - Layout/IndentationWidth
+  - Layout/TrailingWhitespace
+  - Style/StringLiterals
+  - Layout/TrailingEmptyLines
+- app/controllers/api/v2/info_controller.rb:
+  - Layout/SpaceInsideHashLiteralBraces
+  - Style/RedundantParentheses
+  - Style/RescueModifier
+  - Style/TrailingCommaInHashLiteral
+  - Style/ModuleMemberExistenceCheck
+  - Lint/SymbolConversion
+  - Style/TrailingCommaInArrayLiteral
+  - Style/Alias
+- app/controllers/api/v2/users_controller.rb:
+  - Layout/SpaceInsideArrayLiteralBrackets
+  - Layout/TrailingWhitespace
+  - Style/ParenthesesAroundCondition
+  - Style/RedundantParentheses
+  - Performance/InefficientHashSearch
+- app/controllers/api/v3/application_controller.rb:
+  - Style/RedundantParentheses
+  - Layout/SpaceInsideHashLiteralBraces
+  - Layout/ArgumentAlignment
+- app/controllers/api/v3/info_controller.rb:
+  - Style/TrailingCommaInHashLiteral
+  - Style/TrailingCommaInArrayLiteral
+  - Layout/SpaceInsideHashLiteralBraces
+- app/controllers/api/v3/users_controller.rb:
+  - Layout/SpaceInsideArrayLiteralBrackets
+  - Style/RedundantParentheses
+  - Style/ParenthesesAroundCondition
+- app/models/endpoints/push_subscriber.rb:
+  - Style/RedundantSelf
+  - Style/StringLiterals
+  - Layout/SpaceInsideHashLiteralBraces
+  - Layout/ArrayAlignment
+- app/models/endpoints/test_api.rb:
+  - Style/RedundantSelf
+  - Style/StringLiterals
+  - Style/TrailingCommaInHashLiteral
+  - Layout/TrailingWhitespace
+  - Style/RedundantReturn
+  - Layout/SpaceInsideHashLiteralBraces
+- app/models/test_api.rb:
+  - Layout/TrailingEmptyLines
+- config/initializers/after_initialize_for_model_driven_api.rb:
+  - Style/StringLiterals
+  - Layout/IndentationWidth
+  - Layout/TrailingEmptyLines
+- config/initializers/auto_include_json.rb:
+  - Layout/SpaceAfterComma
+  - Style/HashExcept
+  - Layout/ExtraSpacing
+  - Style/RedundantSelf
+  - Layout/EmptyLinesAroundModuleBody
+- config/initializers/cors_api_thecore.rb:
+  - Style/StringLiterals
+  - Style/PercentLiteralDelimiters
+- config/initializers/knock.rb:
+  - Layout/EmptyLines
+- config/routes.rb:
+  - Layout/SpaceInsideHashLiteralBraces
+  - Layout/ExtraSpacing
+- lib/api/custom_action_dispatcher.rb:
+  - Layout/IndentationWidth
+  - Layout/ElseAlignment
+  - Layout/EndAlignment
+  - Style/RescueModifier
+  - Layout/MultilineOperationIndentation
+  - Style/ModuleMemberExistenceCheck
+- lib/api/open_api/base.rb:
+  - Style/SafeNavigation
+  - Style/RescueModifier
+  - Style/MultilineIfModifier
+  - Style/PercentLiteralDelimiters
+  - Layout/SpaceInsidePercentLiteralDelimiters
+  - Layout/SpaceInsideHashLiteralBraces
+  - Lint/SymbolConversion
+  - Style/TernaryParentheses
+  - Style/IfUnlessModifierOfIfUnless
+- lib/api/open_api/v2.rb:
+  - Lint/SymbolConversion
+  - Style/TrailingCommaInArrayLiteral
+  - Style/TrailingCommaInHashLiteral
+  - Lint/LiteralAsCondition
+  - Style/RescueModifier
+  - Style/RedundantParentheses
+  - Style/StringLiterals
+  - Style/RedundantAssignment
+  - Layout/HeredocIndentation
+- lib/api/open_api/v3.rb:
+  - Layout/SpaceInsideHashLiteralBraces
+  - Style/TrailingCommaInHashLiteral
+  - Layout/ExtraSpacing
+  - Style/TrailingCommaInArrayLiteral
+  - Style/RedundantParentheses
+  - Style/RescueModifier
+  - Style/EmptyStringInsideInterpolation
+- lib/api/v3/serializer_factory.rb:
+  - Style/RedundantLineContinuation
+  - Layout/SpaceInsideHashLiteralBraces
+  - Layout/EmptyLinesAfterModuleInclusion
+  - Layout/ExtraSpacing
+- lib/concerns/api_exception_management.rb:
+  - Layout/IndentationWidth
+  - Layout/TrailingWhitespace
+  - Style/RedundantReturn
+  - Style/StringLiterals
+  - Layout/TrailingEmptyLines
+- lib/concerns/model_driven_api_application_record.rb:
+  - Layout/IndentationWidth
+  - Layout/TrailingWhitespace
+  - Layout/TrailingEmptyLines
+- lib/concerns/model_driven_api_default_json_attrs.rb:
+  - Layout/SpaceInsideHashLiteralBraces
+- lib/concerns/model_driven_api_push_message.rb:
+  - Style/RedundantParentheses
+- lib/concerns/model_driven_api_push_subscriber.rb:
+  - Style/RedundantParentheses
+- lib/concerns/model_driven_api_role.rb:
+  - Layout/IndentationWidth
+  - Layout/TrailingWhitespace
+  - Style/RedundantParentheses
+  - Layout/FirstHashElementIndentation
+  - Layout/ArrayAlignment
+  - Layout/CommentIndentation
+  - Layout/TrailingEmptyLines
+- lib/concerns/model_driven_api_user.rb:
+  - Layout/IndentationWidth
+  - Layout/TrailingWhitespace
+  - Style/RedundantParentheses
+  - Layout/FirstHashElementIndentation
+  - Layout/ArrayAlignment
+  - Layout/CommentIndentation
+  - Layout/TrailingEmptyLines
+- lib/endpoint_validation_error.rb:
+  - Layout/TrailingEmptyLines
+- lib/json_web_token.rb:
+  - Style/StringLiterals
+  - Layout/CommentIndentation
+  - Layout/SpaceAroundOperators
+  - Style/RescueModifier
+- lib/model_driven_api.rb:
+  - Style/StringLiterals
+- lib/non_crud_endpoints.rb:
+  - Layout/IndentationWidth
+  - Style/RedundantSelf
+  - Style/RedundantReturn
+  - Layout/TrailingWhitespace
+  - Layout/LeadingCommentSpace
+  - Layout/CommentIndentation
+  - Layout/AccessModifierIndentation
+  - Lint/IneffectiveAccessModifier
+  - Layout/TrailingEmptyLines
+- lib/tasks/model_driven_api_tasks.rake:
+  - Style/TernaryParentheses
+- model_driven_api.gemspec:
+  - Layout/ExtraSpacing
+  - Style/StringLiterals
+  - Layout/TrailingWhitespace
+- spec/initializers/auto_include_json_spec.rb:
+  - Layout/SpaceInsideHashLiteralBraces
+- spec/lib/api/v3/serializer_factory_spec.rb:
+  - Layout/SpaceInsideHashLiteralBraces
+  - Layout/EmptyLinesAfterModuleInclusion
+- spec/lib/concerns/api_exception_management_spec.rb:
+  - Layout/EmptyLinesAfterModuleInclusion
+- spec/lib/json_web_token_spec.rb:
+  - Layout/SpaceInsideHashLiteralBraces
+- spec/requests/api/raw_sql_spec.rb:
+  - Layout/SpaceInsideHashLiteralBraces
+- spec/requests/api/v2/idempotent_create_spec.rb:
+  - Layout/SpaceInsideHashLiteralBraces
+  - Style/TernaryParentheses
+- spec/requests/api/v2/index_empty_collection_spec.rb:
+  - Layout/SpaceInsideHashLiteralBraces
+- spec/requests/api/v2/json_attrs_param_spec.rb:
+  - Layout/SpaceInsideHashLiteralBraces
+- spec/requests/api/v2/locked_user_spec.rb:
+  - Layout/SpaceInsideHashLiteralBraces
+- spec/requests/api/v2/push_subscriber_spec.rb:
+  - Layout/ArgumentAlignment
+  - Layout/SpaceInsideHashLiteralBraces
+- spec/requests/api/v2/secret_key_rotation_spec.rb:
+  - Layout/SpaceInsideHashLiteralBraces
+- spec/requests/api/v3/authentication_spec.rb:
+  - Layout/SpaceInsideHashLiteralBraces
+  - Layout/ArgumentAlignment
+- spec/requests/api/v3/idempotent_create_spec.rb:
+  - Layout/SpaceInsideHashLiteralBraces
+- spec/requests/api/v3/roles_spec.rb:
+  - Layout/SpaceInsideHashLiteralBraces
+- spec/spec_helper.rb:
+  - Style/RescueModifier
+- spec/support/query_counter.rb:
+  - Style/StringLiterals
+- test/dummy/app/channels/application_cable/channel.rb:
+  - Style/EmptyMethod
+  - Style/SingleLineMethods
+- test/dummy/app/channels/application_cable/connection.rb:
+  - Style/EmptyMethod
+  - Style/SingleLineMethods
+- test/dummy/app/jobs/application_job.rb:
+  - Style/EmptyMethod
+  - Style/SingleLineMethods
+- test/dummy/app/models/user.rb:
+  - Style/SuperArguments
+- test/dummy/config/application.rb:
+  - Layout/ExtraSpacing
+  - Layout/EmptyLineBetweenDefs
+  - Layout/SpaceAroundOperators
+  - Style/MultilineIfModifier
+  - Style/EmptyMethod
+  - Style/SingleLineMethods
+  - Layout/EmptyLinesAroundClassBody

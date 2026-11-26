@@ -41,13 +41,15 @@ bundle exec rspec
 # As CI does, with the JUnit XML
 bundle exec rspec --format progress --format RspecJunitFormatter --out tmp/junit/rspec.xml
 
-# Lint
+# Lint (CI runs it before the specs, and a red lint never publishes)
 bundle exec standardrb
 
 # Release a new version:
 # 1. Bump lib/model_driven_api/version.rb
 # 2. Commit and push to release/3 — CI publishes it only if the specs are green
 ```
+
+Lint: `standard` (Gemfile, `.standard.yml`). Files that had offenses when it was added (2026-11-26) are listed in `.standard_todo.yml` and not linted: when you touch one, fix it (`bundle exec standardrb --fix <file>`, check the diff) and remove its entry; never add an entry. `Style/EvalWithLocation` is disabled inline where a spec fakes a method's file on purpose.
 
 Tests run on PostgreSQL only, never SQLite. First run: `RAILS_ENV=test bin/rails db:create` from the gem root (`test/dummy` has no `bin/`).
 

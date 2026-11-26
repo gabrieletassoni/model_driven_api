@@ -29,7 +29,7 @@ RSpec.describe Api::V2::RequestJsonAttrs do
         def serializable_hash(options = nil)
           options = (options || {}).dup
           options[:except] = Array(options[:except]) + %w[encrypted_password last_sign_in_at]
-          super(options)
+          super
         end
       end
     end
@@ -84,7 +84,8 @@ RSpec.describe Api::V2::RequestJsonAttrs do
     let(:record) { klass.find(role.id) }
 
     before do
-      klass.module_eval("def foreign_reader = 'foreign'", "/opt/elsewhere/gems/foreign-1.0/lib/foreign.rb", 1)
+      # A fake location on purpose: the method must look written in a foreign gem.
+      klass.module_eval("def foreign_reader = 'foreign'", "/opt/elsewhere/gems/foreign-1.0/lib/foreign.rb", 1) # standard:disable Style/EvalWithLocation
     end
 
     it "run as before when the model declares them, side effects included" do
@@ -118,10 +119,13 @@ RSpec.describe Api::V2::RequestJsonAttrs do
 
     it "never call methods of a non-thecore gem installed inside the app, as deploy images do (/app/vendor/bundle)" do
       gem_dir = Rails.root.join("vendor/bundle/ruby/3.3.0/gems/foreign-1.0").to_s
-      foreign = Gem::Specification.new { |spec| spec.name = "foreign"; spec.version = "1.0" }
+      foreign = Gem::Specification.new { |spec|
+        spec.name = "foreign"
+        spec.version = "1.0"
+      }
       allow(foreign).to receive(:full_gem_path).and_return(gem_dir)
       allow(Gem).to receive(:loaded_specs).and_return(Gem.loaded_specs.merge("foreign" => foreign))
-      klass.module_eval("def bundled_reader = 'bundled'", File.join(gem_dir, "lib/foreign.rb"), 1)
+      klass.module_eval("def bundled_reader = 'bundled'", File.join(gem_dir, "lib/foreign.rb"), 1) # standard:disable Style/EvalWithLocation
 
       expect(serialize(record, only: %w[id], methods: %w[bundled_reader])).to eq("id" => role.id)
     end
@@ -153,8 +157,14 @@ RSpec.describe Api::V2::RequestJsonAttrs do
           after_save :our_external_callback
           after_commit :declared_callback
 
-          define_method(:our_validation_callback) { log << :validation; "validation" }
-          define_method(:our_external_callback) { log << :external; "external" }
+          define_method(:our_validation_callback) {
+            log << :validation
+            "validation"
+          }
+          define_method(:our_external_callback) {
+            log << :external
+            "external"
+          }
           define_method(:declared_callback) { "declared" }
 
           def our_reader = "read #{name}"
@@ -268,6 +278,7 @@ RSpec.describe Api::V2::RequestJsonAttrs do
   it "applies the same rules to ActiveModel objects a custom action returns" do
     summary_class = Class.new do
       include ActiveModel::Serializers::JSON
+
       def self.name = "Summary"
       def attributes = {"title" => nil}
       def title = "Summary"

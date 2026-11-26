@@ -45,6 +45,11 @@ gem 'jsonapi-serializer', '~> 2.2'
 # Pagination (v3)
 gem 'pagy', '~> 9.0'
 
+# Lint: bundle exec standardrb (CI runs it; old offenses frozen in .standard_todo.yml)
+group :development, :test do
+  gem "standard", "~> 1.50", require: false
+end
+
 group :test do
   gem 'rspec-rails', '~> 7.0'
   gem 'factory_bot_rails', '~> 6.4'

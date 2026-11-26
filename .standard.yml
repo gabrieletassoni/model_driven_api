@@ -1,3 +1,9 @@
 # For available configuration options, see:
 #   https://github.com/testdouble/standard
-ruby_version: 2.6
+# Run: bundle exec standardrb (CI runs it). Offenses older than its introduction (2026-11-26) are
+# frozen in .standard_todo.yml: fix a file's entries when you touch it, never add new ones.
+ruby_version: 3.3
+ignore:
+  - "vendor/**/*"
+  - "test/dummy/db/**/*"
+  - "tmp/**/*"
