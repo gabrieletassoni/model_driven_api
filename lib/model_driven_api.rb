@@ -22,10 +22,12 @@ require 'concerns/api_exception_management'
 require 'deep_merge/rails_compat'
 
 require "model_driven_api/engine"
+require "model_driven_api/current"
 
 require "safe_sql_executor"
 require "raw_sql_grants"
 require "api/resource_attribute_set"
+require "api/v2/request_json_attrs"
 require "api/model_resolver"
 require "api/custom_action_dispatcher"
 require "api/open_api/base"

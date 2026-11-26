@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [3.18.0] - 2026-11-26
+
+### Security
+- **Serialization options sent by the client (`a` / `json_attrs`, API v2 and custom actions) follow conventions** (host Odoo #6285, ADR 0006). Before, they could call model methods with side effects and return attributes the model hides. Now `include` accepts only real associations; secrets a model hides by default (a hidden column named like a secret, e.g. Devise's `encrypted_password`) never come back; a `methods` name declared in the model's `json_attrs[:methods]` works as before; columns, associations and `<association>_ids` are plain reads; any other name must be a public method written in the host app or a thecore gem, not ending in `!`/`=`, without required arguments, and runs read-only. A refused name is dropped from the response and logged; the response stays 200. Options built by the code are unchanged.
+
 ## [3.17.0] - 2026-11-25
 
 ### Security

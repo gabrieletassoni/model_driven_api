@@ -57,7 +57,7 @@ Inherits from v2; reuses `authenticate_request`, `extract_model`, `find_record`,
 
 `GET /api/v2/:model?q[field_predicate]=value` or `POST /api/v2/:model/search`.  
 Pagination via `page` + `per`. Count-only via `count=true`.  
-Field selection via `a` or `json_attrs` (mirrors Rails `as_json` DSL: `only`, `except`, `methods`, `include`). Either must be a hash (`?a[only][]=id`): a scalar or an array answers 400 `{"error": "The a parameter must be a hash, e.g. a[only][]=id"}` in every environment, from the `reject_non_hash_json_attrs` before_action, before anything is saved (host Odoo #6258). It runs where `reads_json_attrs?` is true: every custom action plus index, show, create and update/patch in v2 (a plain destroy renders no record), custom actions only in v3. A new action that calls `json_attrs` must be added there.
+Field selection via `a` or `json_attrs` (mirrors Rails `as_json` DSL: `only`, `except`, `methods`, `include`). Either must be a hash (`?a[only][]=id`): a scalar or an array answers 400 `{"error": "The a parameter must be a hash, e.g. a[only][]=id"}` in every environment, from the `reject_non_hash_json_attrs` before_action, before anything is saved (host Odoo #6258). It runs where `reads_json_attrs?` is true: every custom action plus index, show, create and update/patch in v2 (a plain destroy renders no record), custom actions only in v3. A new action that calls `json_attrs` must be added there. What the client may ask for follows the conventions of `Api::V2::RequestJsonAttrs` (ADR 0006, host Odoo #6285): real associations only, never a hidden attribute, `methods` declared by the model or written in the app/thecore gems and run read-only; refused names are dropped and logged, the response stays 200.
 
 ## Routes summary
 

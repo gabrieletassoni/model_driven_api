@@ -11,11 +11,11 @@ app/controllers/api/v2/  application (core CRUD + auth), authentication, auth/oa
 app/controllers/api/v3/  JSON:API layer on v2: application, authentication, info, raw, users
 app/models/endpoints/    push_subscriber.rb (custom endpoints)
 lib/model_driven_api.rb  gem entrypoint (explicit requires: pagy, jsonapi/serializer)
-lib/model_driven_api/    engine.rb, version.rb
-lib/api/                 model_resolver, custom_action_dispatcher, resource_attribute_set,
+lib/model_driven_api/    engine.rb, version.rb, current.rb (per-request state)
+lib/api/                 model_resolver, custom_action_dispatcher, resource_attribute_set, v2/request_json_attrs,
                          open_api/{base,v2,v3}, v3/serializer_factory
 lib/                     json_web_token.rb, safe_sql_executor.rb, non_crud_endpoints.rb, concerns/
-config/initializers/     after_initialize_for_model_driven_api.rb, default_json_attrs_registration.rb
+config/initializers/     after_initialize_for_model_driven_api.rb, default_json_attrs_registration.rb, request_json_attrs.rb
 spec/  test/dummy/       RSpec + PostgreSQL dummy app
 docs/adr/  docs/agents/  GLOSSARY.md  AGENTS.md (orientation map)
 ```
@@ -54,6 +54,7 @@ Tests run on PostgreSQL only, never SQLite. First run: `RAILS_ENV=test bin/rails
 ## Rules most tasks need
 
 - **UTC-only backend, enforced at boot** (`ModelDrivenApi.enforce_utc!`). Never reintroduce a global `as_json` override on time classes.
+- Serialization options from the request (`a` / `json_attrs`) go through `Api::V2::RequestJsonAttrs.from_params`, and every record applies its own class's rules (ADR 0006): associations only, hidden secrets never, undeclared `methods` only if public, ours (host or thecore gem), no `!`/`=`, no required args, run under `while_preventing_writes`. Never pass request options to `as_json` unmarked.
 - `params` is `request.parameters`: never use `params.require(...).permit(...)`.
 - `update` and `patch` are the same method.
 - Every runtime dependency needed at class-body evaluation (`pagy`, `jsonapi/serializer`) is `require`d explicitly in `lib/model_driven_api.rb`; add any new runtime dependency's constant to `spec/lib/self_contained_require_spec.rb`.

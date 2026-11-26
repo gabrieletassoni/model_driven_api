@@ -27,6 +27,17 @@ module AutoIncludeJson
     end
   end
 
+  # What to preload and the options to serialize with. Options from the request (a / json_attrs)
+  # preload only real associations of +klass+ and keep their marks (Api::V2::RequestJsonAttrs);
+  # the code's own options go through build_includes / sanitize_includes as before.
+  def includes_and_options(klass, options)
+    if Api::V2::RequestJsonAttrs.marked?(options)
+      [Api::V2::RequestJsonAttrs.preloads(klass, options[:include]), options]
+    else
+      [build_includes(options[:include]), options.merge(include: sanitize_includes(options[:include]))]
+    end
+  end
+
   # Recursively sanitize include options to ensure only, except, methods propagate
   def sanitize_includes(include_option)
     case include_option
@@ -60,9 +71,7 @@ module AutoIncludeRelationJson
     Rails.logger.debug "AutoIncludeJson - Relation JSON to_json from #{caller_locations(1,1).first.label}"
     return super unless options.is_a?(Hash) && options[:include]
 
-    includes_hash = build_includes(options[:include])
-    sanitized_includes = sanitize_includes(options[:include])
-    options = options.merge(include: sanitized_includes)
+    includes_hash, options = includes_and_options(klass, options)
 
     self.includes(includes_hash).load.to_a.to_json(options)
   end
@@ -71,9 +80,7 @@ module AutoIncludeRelationJson
     Rails.logger.debug "AutoIncludeJson - Relation JSON as_json from #{caller_locations(1,1).first.label}"
     return super unless options.is_a?(Hash) && options[:include]
 
-    includes_hash = build_includes(options[:include])
-    sanitized_includes = sanitize_includes(options[:include])
-    options = options.merge(include: sanitized_includes)
+    includes_hash, options = includes_and_options(klass, options)
 
     self.includes(includes_hash).load.to_a.as_json(options)
   end
@@ -99,15 +106,14 @@ module AutoIncludeInstanceJson
     Rails.logger.debug "AutoIncludeJson - Instance JSON preload_and_sanitize from #{caller_locations(1,1).first.label}"
     return options unless options.is_a?(Hash) && options[:include]
 
-    includes_hash = build_includes(options[:include])
-    sanitized_includes = sanitize_includes(options[:include])
+    includes_hash, options = includes_and_options(self.class, options)
 
     ActiveRecord::Associations::Preloader.new(
       records: [self],
       associations: includes_hash
     ).call
 
-    options.merge(include: sanitized_includes)
+    options
   end
 
 end

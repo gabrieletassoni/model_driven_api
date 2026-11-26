@@ -273,9 +273,11 @@ class Api::V2::ApplicationController < ActionController::API
     # In order of importance: if you send the configuration via querystring you are ok
     # has precedence over if you have setup the json_attrs in the model concern
     # (JSON_ATTRS_PARAMS order: json_attrs wins over a; reject_non_hash_json_attrs ran first).
+    # Options from the request follow the conventions of Api::V2::RequestJsonAttrs (host Odoo #6285).
     from_params = nil
     JSON_ATTRS_PARAMS.each { |key| from_params = params[key].deep_symbolize_keys if params[key].present? }
-    from_params.presence || @json_attrs.presence || @model.json_attrs.presence || {} rescue {}
+    return Api::V2::RequestJsonAttrs.from_params(from_params) if from_params.present?
+    @json_attrs.presence || @model.json_attrs.presence || {} rescue {}
   end
 
   def extract_model
