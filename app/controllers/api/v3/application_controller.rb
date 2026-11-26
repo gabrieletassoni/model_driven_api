@@ -87,14 +87,15 @@ class Api::V3::ApplicationController < Api::V2::ApplicationController
     scope
   end
 
+  # Sorts only by fields the model lets Ransack sort by, like `filter`: ordering by a hidden secret
+  # would reveal it (host Odoo #6313). Other fields are ignored.
   def apply_sorting(scope)
     return scope if params[:sort].blank?
+    sortable = @model.ransortable_attributes & @model.column_names # a ransacker is no column to order by
     params[:sort].to_s.split(",").each do |field|
-      if field.start_with?("-")
-        scope = scope.order(field[1..] => :desc)
-      else
-        scope = scope.order(field => :asc)
-      end
+      name, direction = field.start_with?("-") ? [field[1..], :desc] : [field, :asc]
+      next unless sortable.include?(name)
+      scope = scope.order(name => direction)
     end
     scope
   end

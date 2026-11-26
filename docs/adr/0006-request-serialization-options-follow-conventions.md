@@ -9,7 +9,7 @@ The fix had to be secure, zero maintenance in every Thecore backend, and backwar
 Options that come from the request are marked (`Api::V2::RequestJsonAttrs::MARK`) and every record (or ActiveModel object a custom action returns) serializes them with the rules of its own class (a module prepended to `ActiveModel::Serialization#serializable_hash`):
 
 - `include` keeps real associations only; `AutoIncludeJson` preloads only those.
-- Secrets the class hides by default never come back, through `only`, `methods` or `except`: columns missing from a new record's default `serializable_hash` whose name is a secret's by Rails' `filter_parameters` convention (`passw`, `token`, `secret`, `crypt`, `salt`, `_key`, ...), plus `write_only_attributes`. Other hidden columns (Devise's sign-in times, counts and IPs) are still served through `only`, as frontends read them today.
+- Secrets the class hides never come back, through `only`, `methods` or `except`: columns whose name is a secret's by Rails' `filter_parameters` convention (`passw`, `token`, `secret`, `crypt`, `salt`, `_key`, ...) and that the class hides through its default `serializable_hash`, its own `json_attrs[:except]` or `write_only_attributes` (`Api::HiddenSecrets`). Other hidden columns (Devise's sign-in times, counts and IPs) are still served through `only`, as frontends read them today.
 - A `methods` name the class declares in `json_attrs[:methods]` runs as before: a developer exposed it, side effects included.
 - A column, an association or `<association>_ids` is a plain read.
 - Any other name must be public, end in neither `!` nor `=`, take no required argument, and be written in the host app or in a thecore gem (named `thecore*` or depending on one). The gem that owns the file decides before the app's root does: deploy images install the bundle inside the app (`/app/vendor/bundle`). It runs under `ActiveRecord::Base.while_preventing_writes`; if it writes or raises, the record's attributes are restored and only that field is dropped.
@@ -28,3 +28,8 @@ Options built by the code (a model's `json_attrs`, a custom action's `@json_attr
 - Classification is cached per class and method name (only names the class defines, so client-chosen names cannot grow it), hidden attributes per class, gem roots once: on 300 records the rules cost about 0.4 ms per response, the guard a few microseconds per record and method.
 - Side effects that never touch the database (an e-mail sent with `deliver_now`, an HTTP call) are not blocked by the guard: an undeclared method of ours must not have them. Methods that should never be reachable belong in `private`.
 - A frontend that needs a framework method or a writer must have it declared in the model's `json_attrs[:methods]`.
+
+## Extension: the same secrets everywhere (host Odoo #6313, 3.19.0)
+
+The secrets of the first point were still readable by other paths: v3 serialized `encrypted_password` in every User response (`ResourceAttributeSet` reads `json_attrs`, not Devise's `serializable_hash`), Ransack filtered and sorted on every column (`q[encrypted_password_start]` rebuilt the hash a character at a time), v3 `sort` ordered by any column, and a secret hidden only through `json_attrs[:except]` (`encrypted_access_token`) came back with `a[only]`. `Api::HiddenSecrets.for(model)` is now the one list, used by v3 attributes, v2 request options and the default `ransackable_attributes`; v3 `sort` takes only `ransortable_attributes`. A secret-named column the model doesn't hide stays readable.
+

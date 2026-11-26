@@ -12,7 +12,7 @@ app/controllers/api/v3/  JSON:API layer on v2: application, authentication, info
 app/models/endpoints/    push_subscriber.rb (custom endpoints)
 lib/model_driven_api.rb  gem entrypoint (explicit requires: pagy, jsonapi/serializer)
 lib/model_driven_api/    engine.rb, version.rb, current.rb (per-request state)
-lib/api/                 model_resolver, custom_action_dispatcher, resource_attribute_set, v2/request_json_attrs,
+lib/api/                 model_resolver, custom_action_dispatcher, resource_attribute_set, hidden_secrets, v2/request_json_attrs,
                          open_api/{base,v2,v3}, v3/serializer_factory
 lib/                     json_web_token.rb, safe_sql_executor.rb, non_crud_endpoints.rb, concerns/
 config/initializers/     after_initialize_for_model_driven_api.rb, default_json_attrs_registration.rb, request_json_attrs.rb
@@ -58,7 +58,7 @@ Tests run on PostgreSQL only, never SQLite. First run: `RAILS_ENV=test bin/rails
 - `params` is `request.parameters`: never use `params.require(...).permit(...)`.
 - `update` and `patch` are the same method.
 - Every runtime dependency needed at class-body evaluation (`pagy`, `jsonapi/serializer`) is `require`d explicitly in `lib/model_driven_api.rb`; add any new runtime dependency's constant to `spec/lib/self_contained_require_spec.rb`.
-- A model's `write_only_attributes` (class method, e.g. `LdapServer` → `admin_password`) never reach a serializer: `ResourceAttributeSet` drops them for v3, the model's own `serializable_hash` for v2.
+- A model's **API-hidden secrets** (`Api::HiddenSecrets.for(model)`: secret-named columns the model already hides through its default `serializable_hash`, its `json_attrs[:except]` or `write_only_attributes`, e.g. Devise's `encrypted_password`, `LdapServer#admin_password`) are never readable: `ResourceAttributeSet` drops them for v3, `RequestJsonAttrs` for v2 request options, `ransackable_attributes` for Ransack (v2 `q`, v3 `filter`/`sort`). v3 `sort` only takes `ransortable_attributes`. Host Odoo #6313.
 - `Api::ResourceAttributeSet.for(model)` is the single source of truth for `json_attrs[:only/:except/:methods/:include]`: never inline it. Compose `json_attrs` with `ModelDrivenApi.smart_merge`, never plain `merge`.
 - `SerializerFactory` uses `send`, not `public_send`, for `methods:`, and caches serializers per class until restart.
 - OpenAPI paths live in `Api::OpenApi::V2/V3`, not in the info controllers.

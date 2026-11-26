@@ -232,7 +232,7 @@ module Api
         end
 
         id_param = { "name" => "id", "in" => "path", "required" => true, "schema" => { "type" => "integer" } }
-        sort_param = { "name" => "sort", "in" => "query", "schema" => { "type" => "string" }, "description" => "field or -field (descending), comma-separated" }
+        sort_param = { "name" => "sort", "in" => "query", "schema" => { "type" => "string" }, "description" => "field or -field (descending), comma-separated; only the model's ransortable attributes, others are ignored" }
         page_params = [
           { "name" => "page[number]", "in" => "query", "schema" => { "type" => "integer" } },
           { "name" => "page[size]",   "in" => "query", "schema" => { "type" => "integer" } },
@@ -336,7 +336,7 @@ module Api
 
           ### Sorting
 
-          `?sort=field` (asc) · `?sort=-field` (desc) · `?sort=field1,-field2` (multi-field).
+          `?sort=field` (asc) · `?sort=-field` (desc) · `?sort=field1,-field2` (multi-field) — validated against each model's `ransortable_attributes`; other fields are ignored.
 
           ### Pagination
 

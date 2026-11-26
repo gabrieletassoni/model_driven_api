@@ -51,7 +51,7 @@ module Api
       # The options Rails should serialize a record of +klass+ with, and the methods to evaluate
       # under the read-only guard.
       def for_class(klass, options)
-        hidden = hidden_attributes(klass)
+        hidden = Api::HiddenSecrets.for(klass)
         rewritten = options.except(MARK)
         rewritten[:only] = Array(options[:only]).map(&:to_s) - hidden if options.key?(:only)
         rewritten[:except] = Array(options[:except]).map(&:to_s) | hidden
@@ -85,7 +85,7 @@ module Api
       end
 
       def classify(klass, name)
-        return "hidden attribute" if hidden_attributes(klass).include?(name)
+        return "hidden attribute" if Api::HiddenSecrets.for(klass).include?(name)
         return :declared if declared_methods(klass).include?(name)
         return :reader if reader?(klass, name)
         return "ends in ! or =" if name.end_with?("!", "=")
@@ -112,32 +112,6 @@ module Api
         return true if klass.reflect_on_association(name)
 
         klass.reflect_on_all_associations.any? { |r| r.collection? && "#{r.name.to_s.singularize}_ids" == name }
-      end
-
-      # Names Rails treats as secrets (filter_parameters), on top of the host's own list.
-      SECRET_NAMES = %i[passw secret token _key crypt salt certificate otp ssn cvv cvc].freeze
-
-      # The secrets the class leaves out of its own default serialization: columns missing from a
-      # new record's default serializable_hash whose name is a secret's (Devise's encrypted_password,
-      # not its sign-in tracking, which frontends read through `only`), plus write_only_attributes.
-      # Memoized per class.
-      def hidden_attributes(klass)
-        return [] unless active_record?(klass)
-
-        (@hidden ||= Concurrent::Map.new).compute_if_absent(klass) do
-          write_only = klass.respond_to?(:write_only_attributes) ? Array(klass.write_only_attributes).map(&:to_s) : []
-          left_out = begin
-            klass.column_names - klass.new.serializable_hash.keys
-          rescue StandardError
-            []
-          end
-          (left_out.select { |column| secret_name?(column) } | write_only).freeze
-        end
-      end
-
-      def secret_name?(name)
-        @secret_filter ||= ActiveSupport::ParameterFilter.new(SECRET_NAMES + Rails.application.config.filter_parameters)
-        @secret_filter.filter(name => "x")[name] != "x"
       end
 
       # Written in the host app or in a thecore gem. The gem that owns the file decides first:

@@ -26,6 +26,7 @@ require "model_driven_api/current"
 
 require "safe_sql_executor"
 require "raw_sql_grants"
+require "api/hidden_secrets"
 require "api/resource_attribute_set"
 require "api/v2/request_json_attrs"
 require "api/model_resolver"

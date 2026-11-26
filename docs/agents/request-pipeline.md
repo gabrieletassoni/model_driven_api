@@ -43,7 +43,7 @@ Every API request goes through `Api::V2::ApplicationController`:
 
 Inherits from v2; reuses `authenticate_request`, `extract_model`, `find_record`, and all CanCan authorization. Overrides all CRUD actions:
 
-- **`index`** — `filter[field]=value` params (validated against `ransackable_attributes`), `sort=field` / `sort=-field` (comma-separated), Pagy pagination via `page[number]` + `page[size]`. Response: `{ data: […], meta: { total: N } }`.
+- **`index`** — `filter[field]=value` params (validated against `ransackable_attributes`), `sort=field` / `sort=-field` (comma-separated, validated against `ransortable_attributes`; other fields are ignored, host Odoo #6313), Pagy pagination via `page[number]` + `page[size]`. Response: `{ data: […], meta: { total: N } }`.
 - **`show`** — `{ data: { id:, type:, attributes: {} } }`.
 - **`create`** — reads attributes from `params[:data][:attributes]`. Response: 201 + resource object.
 - **`update`/`patch`** — reads attributes from `params[:data][:attributes]`. Response: 200 + resource object.

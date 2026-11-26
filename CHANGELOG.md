@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+## [3.19.0] - 2026-11-26
+
+### Security
+- **A model's hidden secrets are never readable through the API** (host Odoo #6313, ADR 0006): a column named like a secret that the model already hides (left out of its default `serializable_hash` as Devise does, listed in its `json_attrs[:except]`, or in `write_only_attributes`) is no longer served by v3, nor returned by v2 request options, nor filterable or sortable with Ransack (v2 `q`, v3 `filter`/`sort`). Before, v3 returned Devise's `encrypted_password` and Ransack filters on it narrowed the results. A secret-named column the model doesn't hide behaves as before.
+- v3 `sort` only orders by fields the model lets Ransack sort by; other fields are ignored (before, any column, and an unknown one raised).
+
 ## [3.18.0] - 2026-11-26
 
 ### Security
