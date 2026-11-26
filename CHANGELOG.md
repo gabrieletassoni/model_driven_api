@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [3.20.0] - 2026-11-26
+
+### Security
+- **A model's callbacks are never called through client serialization options** (host Odoo #6314, ADR 0006): a `methods` name registered as a callback of the record's class (any chain: validation, save, create, update, destroy, commit, ...) is dropped and logged with reason `a callback`, at every include level, unless the model declares it in `json_attrs[:methods]`. Before, a public callback written in the host or a thecore gem ran read-only, and one whose side effect lives outside the database (Redis, mail, HTTP) was not stopped by the guard.
+
 ## [3.19.0] - 2026-11-26
 
 ### Security
