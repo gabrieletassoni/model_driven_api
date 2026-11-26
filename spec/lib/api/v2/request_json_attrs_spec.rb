@@ -203,6 +203,26 @@ RSpec.describe Api::V2::RequestJsonAttrs do
           .to eq("id" => message.id, "callback_sender" => {"id" => user.id})
         expect(calls).to be_empty
       end
+
+      it "apply to a polymorphic record with the rules of its own class" do
+        log = calls
+        stub_const("CallbackUser", Class.new(User) do
+          after_save :our_external_callback
+          define_method(:our_external_callback) { log << :external }
+        end)
+        message_class = Class.new(PushMessage) do
+          def self.name = "PushMessage"
+          belongs_to :subject, polymorphic: true, foreign_key: :sender_user_id, foreign_type: :message_type, optional: true
+        end
+        user = create(:user)
+        message = create(:push_message, sender: user)
+        message.update_column(:message_type, "CallbackUser")
+
+        expect(serialize(message_class.find(message.id), only: %w[id],
+          include: {subject: {only: %w[id], methods: %w[our_external_callback]}}))
+          .to eq("id" => message.id, "subject" => {"id" => user.id})
+        expect(calls).to be_empty
+      end
     end
 
     it "log each dropped name once per request" do
